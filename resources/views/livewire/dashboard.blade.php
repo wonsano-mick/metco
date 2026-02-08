@@ -1,277 +1,294 @@
-<div>
-    <!-- Debug/Status Bar -->
-    <div class="p-3 mb-4 bg-blue-50 border border-blue-200 rounded-lg">
-        <div class="flex items-center justify-between">
-            <div class="flex items-center">
-                <svg class="h-5 w-5 text-blue-500 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                </svg>
-                <div>
-                    <p class="text-sm font-medium text-blue-800">METCU Banking Dashboard</p>
-                    <p class="text-xs text-blue-600">User: {{ $userEmail ?? 'Loading...' }} | Status: {{ $loading ? 'Loading' : 'Ready' }}</p>
-                </div>
-            </div>
-            <button wire:click="refreshData" 
-                    wire:loading.attr="disabled"
-                    class="text-xs px-3 py-1 bg-blue-100 text-blue-700 rounded hover:bg-blue-200 disabled:opacity-50">
-                <span wire:loading.remove>🔄 Refresh</span>
-                <span wire:loading>🔄 Refreshing...</span>
-            </button>
-        </div>
-    </div>
-
-    <!-- Error State -->
-    @if($error)
-    <div class="mb-6 p-4 bg-red-50 border border-red-200 rounded-lg">
-        <div class="flex">
-            <div class="flex-shrink-0">
-                <svg class="h-5 w-5 text-red-400" viewBox="0 0 20 20" fill="currentColor">
-                    <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clip-rule="evenodd" />
-                </svg>
-            </div>
-            <div class="ml-3">
-                <h3 class="text-sm font-medium text-red-800">Error Loading Dashboard</h3>
-                <div class="mt-1 text-sm text-red-700">
-                    <p>{{ $error }}</p>
-                </div>
-            </div>
-        </div>
-    </div>
-    @endif
-
-    <!-- Loading State -->
-    @if($loading)
-    <div class="min-h-[400px] flex items-center justify-center">
-        <div class="text-center">
-            <div class="inline-block animate-spin rounded-full h-12 w-12 border-4 border-gray-300 border-t-blue-500"></div>
-            <p class="mt-4 text-gray-600">{{ $message }}</p>
-        </div>
-    </div>
-    @else
-    <!-- Main Dashboard Content -->
-    <div class="space-y-6">
-        <!-- Welcome Header -->
-        <div class="bg-gradient-to-r from-blue-500 to-blue-600 rounded-xl shadow-lg p-6 text-white">
-            <div class="flex flex-col md:flex-row items-center justify-between">
-                <div>
-                    <h1 class="text-2xl font-bold mb-2">Welcome back, {{ $userName }}!</h1>
-                    <p class="text-blue-100 opacity-90">Here's your financial overview</p>
-                </div>
-                <div class="mt-4 md:mt-0">
-                    <span class="inline-flex items-center px-4 py-2 bg-white bg-opacity-20 rounded-full">
-                        <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
-                        </svg>
-                        {{ now()->format('F j, Y') }}
+<div class="min-h-screen bg-gray-50">
+    <!-- Header -->
+    <div class="bg-white shadow">
+        <div class="px-4 sm:px-6 lg:px-8">
+            <div class="flex items-center justify-between h-16">
+                <div class="flex items-center">
+                    <h1 class="text-2xl font-bold text-gray-900">Bank Dashboard</h1>
+                    <span class="ml-3 px-3 py-1 text-xs font-semibold rounded-full 
+                        {{ auth()->user()->role === 'super-admin' ? 'bg-purple-100 text-purple-800' : 
+                           (auth()->user()->role === 'manager' ? 'bg-blue-100 text-blue-800' : 
+                           'bg-green-100 text-green-800') }}">
+                        {{ ucfirst(str_replace('-', ' ', auth()->user()->role)) }}
                     </span>
                 </div>
-            </div>
-        </div>
-
-        <!-- Quick Stats -->
-        <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
-            <!-- Total Balance -->
-            <div class="bg-white rounded-xl shadow p-6 hover:shadow-lg transition-shadow">
-                <div class="flex items-center justify-between mb-4">
-                    <div class="p-3 rounded-lg bg-blue-50">
-                        <svg class="w-6 h-6 text-blue-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                        </svg>
+                
+                <div class="flex items-center space-x-4">
+                    <!-- Period Selector -->
+                    <select wire:model="selectedPeriod" 
+                            class="border-gray-300 rounded-lg text-sm focus:ring-indigo-500 focus:border-indigo-500">
+                        <option value="today">Today</option>
+                        <option value="week">This Week</option>
+                        <option value="month">This Month</option>
+                        <option value="year">This Year</option>
+                    </select>
+                    
+                    <!-- Date Range Picker -->
+                    <div class="flex items-center space-x-2">
+                        <input type="date" wire:model="dateRange.start" 
+                               class="border-gray-300 rounded-lg text-sm">
+                        <span class="text-gray-500">to</span>
+                        <input type="date" wire:model="dateRange.end" 
+                               class="border-gray-300 rounded-lg text-sm">
                     </div>
-                    <span class="text-xs font-medium text-green-600">+2.5%</span>
-                </div>
-                <p class="text-sm font-medium text-gray-500">Total Balance</p>
-                <p class="text-3xl font-bold text-gray-900 mt-2">${{ number_format($totalBalance, 2) }}</p>
-                <div class="mt-4 pt-4 border-t border-gray-100">
-                    <p class="text-xs text-gray-500">Across {{ count($accounts) }} accounts</p>
-                </div>
-            </div>
-
-            <!-- Monthly Income -->
-            <div class="bg-white rounded-xl shadow p-6 hover:shadow-lg transition-shadow">
-                <div class="flex items-center justify-between mb-4">
-                    <div class="p-3 rounded-lg bg-green-50">
-                        <svg class="w-6 h-6 text-green-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6" />
-                        </svg>
-                    </div>
-                    <span class="text-xs text-gray-500">This Month</span>
-                </div>
-                <p class="text-sm font-medium text-gray-500">Monthly Income</p>
-                <p class="text-3xl font-bold text-gray-900 mt-2">${{ number_format($monthlyIncome, 2) }}</p>
-                <div class="mt-4 pt-4 border-t border-gray-100">
-                    <p class="text-xs text-gray-500">{{ now()->format('F Y') }}</p>
-                </div>
-            </div>
-
-            <!-- Monthly Expenses -->
-            <div class="bg-white rounded-xl shadow p-6 hover:shadow-lg transition-shadow">
-                <div class="flex items-center justify-between mb-4">
-                    <div class="p-3 rounded-lg bg-red-50">
-                        <svg class="w-6 h-6 text-red-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 17h8m0 0V9m0 8l-8-8-4 4-6-6" />
-                        </svg>
-                    </div>
-                    <span class="text-xs text-gray-500">This Month</span>
-                </div>
-                <p class="text-sm font-medium text-gray-500">Monthly Expenses</p>
-                <p class="text-3xl font-bold text-gray-900 mt-2">${{ number_format($monthlyExpenses, 2) }}</p>
-                <div class="mt-4 pt-4 border-t border-gray-100">
-                    <p class="text-xs text-gray-500">{{ now()->format('F Y') }}</p>
-                </div>
-            </div>
-        </div>
-
-        <!-- Accounts Section -->
-        <div class="bg-white rounded-xl shadow overflow-hidden">
-            <div class="px-6 py-4 border-b border-gray-100 flex justify-between items-center">
-                <div>
-                    <h2 class="text-xl font-bold text-gray-900">Your Accounts</h2>
-                    <p class="text-gray-500 text-sm">Manage your bank accounts</p>
-                </div>
-                <span class="text-sm text-gray-500">{{ count($accounts) }} accounts</span>
-            </div>
-            
-            <div class="p-6">
-                @if(count($accounts) > 0)
-                <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
-                    @foreach($accounts as $account)
-                    <div class="border border-gray-200 rounded-lg p-5 hover:border-blue-300 transition-colors">
-                        <div class="flex items-center justify-between mb-4">
-                            <div class="flex items-center">
-                                <div class="w-10 h-10 rounded-lg bg-blue-100 flex items-center justify-center mr-3">
-                                    @if($account['account_type']['code'] === 'SAVINGS')
-                                    <svg class="w-5 h-5 text-blue-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
-                                    </svg>
-                                    @else
-                                    <svg class="w-5 h-5 text-blue-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z" />
-                                    </svg>
-                                    @endif
-                                </div>
-                                <div>
-                                    <h4 class="font-bold text-gray-900">{{ $account['account_type']['name'] }}</h4>
-                                    <p class="text-sm text-gray-500">{{ $account['account_number'] }}</p>
-                                </div>
-                            </div>
-                            <span class="inline-flex items-center px-3 py-1 rounded-full text-xs font-medium bg-green-100 text-green-800">
-                                {{ ucfirst($account['status']) }}
-                            </span>
-                        </div>
+                    
+                    <!-- Quick Actions -->
+                    <div class="relative" x-data="{ open: false }">
+                        <button @click="open = !open" 
+                                class="p-2 text-gray-600 hover:text-gray-900">
+                            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" 
+                                      d="M12 6v6m0 0v6m0-6h6m-6 0H6"/>
+                            </svg>
+                        </button>
                         
-                        <div class="space-y-3">
-                            <div class="flex justify-between items-center">
-                                <span class="text-gray-500">Current Balance</span>
-                                <span class="text-xl font-bold text-gray-900">${{ number_format($account['current_balance'], 2) }}</span>
-                            </div>
-                            <div class="flex justify-between items-center text-sm">
-                                <span class="text-gray-500">Available</span>
-                                <span class="text-green-600 font-medium">${{ number_format($account['available_balance'], 2) }}</span>
-                            </div>
-                            <div class="flex justify-between items-center text-sm">
-                                <span class="text-gray-500">Currency</span>
-                                <span class="font-medium">{{ $account['currency'] }}</span>
-                            </div>
+                        <div x-show="open" @click.away="open = false" 
+                             class="absolute right-0 mt-2 w-48 bg-white rounded-lg shadow-lg z-10">
+                            <a href="{{ route('transactions.create') }}" 
+                               class="block px-4 py-2 text-sm hover:bg-gray-100">New Transaction</a>
+                            <a href="{{ route('customers.create') }}" 
+                               class="block px-4 py-2 text-sm hover:bg-gray-100">New Customer</a>
+                            <a href="{{ route('accounts.create') }}" 
+                               class="block px-4 py-2 text-sm hover:bg-gray-100">New Account</a>
                         </div>
                     </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Main Content -->
+    <div class="px-4 py-6 sm:px-6 lg:px-8">
+        <!-- Pending Actions Alert -->
+        @if(count($pendingActions) > 0)
+        <div class="mb-6">
+            <div class="bg-white rounded-lg shadow p-4">
+                <h3 class="text-lg font-medium text-gray-900 mb-3">Pending Actions</h3>
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    @foreach($pendingActions as $action)
+                    <a href="{{ route($action['route']) }}" 
+                       class="flex items-center p-3 border rounded-lg hover:shadow-md transition-shadow">
+                        <div class="flex-shrink-0">
+                            <div class="w-10 h-10 rounded-full bg-{{ $action['color'] }}-100 flex items-center justify-center">
+                                <svg class="w-5 h-5 text-{{ $action['color'] }}-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" 
+                                          d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L4.346 16.5c-.77.833.192 2.5 1.732 2.5z"/>
+                                </svg>
+                            </div>
+                        </div>
+                        <div class="ml-3">
+                            <p class="text-sm font-medium text-gray-900">{{ $action['message'] }}</p>
+                            <p class="text-xs text-gray-500">Click to review</p>
+                        </div>
+                    </a>
                     @endforeach
                 </div>
-                @else
-                <div class="text-center py-12">
-                    <div class="w-16 h-16 rounded-full bg-gray-100 flex items-center justify-center mx-auto mb-4">
-                        <svg class="w-8 h-8 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
-                        </svg>
-                    </div>
-                    <h4 class="text-lg font-medium text-gray-900 mb-2">No Accounts Found</h4>
-                    <p class="text-gray-600">You don't have any bank accounts yet.</p>
-                </div>
-                @endif
             </div>
         </div>
+        @endif
 
-        <!-- Recent Transactions -->
-        <div class="bg-white rounded-xl shadow overflow-hidden">
-            <div class="px-6 py-4 border-b border-gray-100 flex justify-between items-center">
-                <div>
-                    <h2 class="text-xl font-bold text-gray-900">Recent Transactions</h2>
-                    <p class="text-gray-500 text-sm">Latest account activity</p>
+        <!-- Stats Grid -->
+        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-6">
+            @foreach($stats as $stat)
+            <div class="bg-white rounded-lg shadow p-6 hover:shadow-lg transition-shadow">
+                <div class="flex items-center justify-between">
+                    <div>
+                        <p class="text-sm font-medium text-gray-500">{{ $stat['label'] }}</p>
+                        <p class="text-2xl font-semibold text-gray-900 mt-2">{{ $stat['value'] }}</p>
+                        <p class="text-sm {{ str_contains($stat['change'], '+') ? 'text-green-600' : 'text-red-600' }} mt-1">
+                            {{ $stat['change'] }} from last period
+                        </p>
+                    </div>
+                    <div class="w-12 h-12 rounded-full bg-{{ $stat['color'] }}-100 flex items-center justify-center">
+                        <svg class="w-6 h-6 text-{{ $stat['color'] }}-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" 
+                                  d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
+                        </svg>
+                    </div>
                 </div>
-                <span class="text-sm text-gray-500">{{ count($recentTransactions) }} transactions</span>
             </div>
-            
-            <div class="p-6">
-                @if(count($recentTransactions) > 0)
+            @endforeach
+        </div>
+
+        <!-- Charts and Recent Activity -->
+        <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+            <!-- Chart -->
+            <div class="lg:col-span-2 bg-white rounded-lg shadow p-6">
+                <div class="flex items-center justify-between mb-6">
+                    <h3 class="text-lg font-medium text-gray-900">Performance Overview</h3>
+                    <div class="flex space-x-2">
+                        <button class="px-3 py-1 text-sm rounded-lg bg-indigo-100 text-indigo-700">30 Days</button>
+                        <button class="px-3 py-1 text-sm rounded-lg text-gray-600 hover:bg-gray-100">90 Days</button>
+                        <button class="px-3 py-1 text-sm rounded-lg text-gray-600 hover:bg-gray-100">1 Year</button>
+                    </div>
+                </div>
+                <div class="h-80">
+                    <canvas id="dashboardChart" 
+                            x-data="{
+                                init() {
+                                    const ctx = this.$el.getContext('2d');
+                                    new Chart(ctx, {
+                                        type: 'line',
+                                        data: @json($chartData),
+                                        options: {
+                                            responsive: true,
+                                            maintainAspectRatio: false,
+                                            plugins: {
+                                                legend: {
+                                                    position: 'top',
+                                                }
+                                            },
+                                            scales: {
+                                                y: {
+                                                    beginAtZero: true,
+                                                    grid: {
+                                                        drawBorder: false
+                                                    }
+                                                },
+                                                x: {
+                                                    grid: {
+                                                        display: false
+                                                    }
+                                                }
+                                            }
+                                        }
+                                    });
+                                }
+                            }"></canvas>
+                </div>
+            </div>
+
+            <!-- Recent Transactions -->
+            <div class="bg-white rounded-lg shadow p-6">
+                <div class="flex items-center justify-between mb-6">
+                    <h3 class="text-lg font-medium text-gray-900">Recent Transactions</h3>
+                    <a href="{{ route('transactions.index') }}" 
+                       class="text-sm text-indigo-600 hover:text-indigo-900">View All</a>
+                </div>
                 <div class="space-y-4">
                     @foreach($recentTransactions as $transaction)
-                    <div class="flex items-center justify-between p-4 border border-gray-100 rounded-lg hover:bg-gray-50 transition-colors">
+                    <div class="flex items-center justify-between p-3 hover:bg-gray-50 rounded-lg">
                         <div class="flex items-center">
-                            <div class="w-10 h-10 rounded-full flex items-center justify-center mr-4
-                                {{ $transaction['type'] === 'credit' ? 'bg-green-100' : 'bg-red-100' }}">
-                                @if($transaction['type'] === 'credit')
-                                <svg class="w-5 h-5 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6" />
+                            <div class="w-10 h-10 rounded-full 
+                                {{ $transaction->type === 'credit' ? 'bg-green-100' : 'bg-red-100' }} 
+                                flex items-center justify-center">
+                                <svg class="w-5 h-5 {{ $transaction->type === 'credit' ? 'text-green-600' : 'text-red-600' }}" 
+                                     fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" 
+                                          d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
                                 </svg>
-                                @else
-                                <svg class="w-5 h-5 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 17h8m0 0V9m0 8l-8-8-4 4-6-6" />
-                                </svg>
-                                @endif
                             </div>
-                            <div>
-                                <p class="font-medium text-gray-900">{{ $transaction['description'] }}</p>
-                                <div class="flex items-center text-sm text-gray-500 mt-1">
-                                    <svg class="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
-                                    </svg>
-                                    <span>{{ \Carbon\Carbon::parse($transaction['created_at'])->format('M d, Y · h:i A') }}</span>
-                                </div>
+                            <div class="ml-3">
+                                <p class="text-sm font-medium text-gray-900">
+                                    {{ $transaction->type === 'credit' ? 'Deposit' : 'Withdrawal' }}
+                                </p>
+                                <p class="text-xs text-gray-500">
+                                    {{ optional($transaction->sourceAccount)->account_number ?? 'External' }} 
+                                    → 
+                                    {{ optional($transaction->destinationAccount)->account_number ?? 'External' }}
+                                </p>
                             </div>
                         </div>
                         <div class="text-right">
-                            <p class="font-bold {{ $transaction['type'] === 'credit' ? 'text-green-600' : 'text-red-600' }}">
-                                {{ $transaction['type'] === 'credit' ? '+' : '-' }}${{ number_format($transaction['amount'], 2) }}
+                            <p class="text-sm font-medium 
+                                {{ $transaction->type === 'credit' ? 'text-green-600' : 'text-red-600' }}">
+                                {{ $transaction->type === 'credit' ? '+' : '-' }}{{ number_format($transaction->amount, 2) }}
                             </p>
-                            <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium mt-1
-                                {{ $transaction['status'] === 'completed' ? 'bg-green-100 text-green-800' : 
-                                   ($transaction['status'] === 'pending' ? 'bg-yellow-100 text-yellow-800' : 'bg-gray-100 text-gray-800') }}">
-                                {{ ucfirst($transaction['status']) }}
-                            </span>
+                            <p class="text-xs text-gray-500">
+                                {{ $transaction->created_at->format('h:i A') }}
+                            </p>
                         </div>
                     </div>
                     @endforeach
                 </div>
-                @else
-                <div class="text-center py-12">
-                    <div class="w-16 h-16 rounded-full bg-gray-100 flex items-center justify-center mx-auto mb-4">
-                        <svg class="w-8 h-8 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4" />
-                        </svg>
-                    </div>
-                    <h4 class="text-lg font-medium text-gray-900 mb-2">No Recent Transactions</h4>
-                    <p class="text-gray-600">Your transaction history will appear here.</p>
-                </div>
-                @endif
             </div>
         </div>
 
-        <!-- Footer Note -->
-        <div class="bg-blue-50 border border-blue-100 rounded-lg p-4">
-            <div class="flex items-center">
-                <svg class="h-5 w-5 text-blue-500 mr-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                </svg>
-                <div>
-                    <p class="text-sm text-blue-800">
-                        Dashboard last updated: {{ now()->format('F j, Y \\a\\t g:i A') }}
-                    </p>
-                    <p class="text-xs text-blue-600 mt-1">
-                        Data is securely loaded from your banking accounts.
-                    </p>
+        <!-- Role-Specific Sections -->
+        @if(auth()->user()->role === 'manager')
+        <div class="mt-6 grid grid-cols-1 lg:grid-cols-2 gap-6">
+            <!-- Branch Performance -->
+            <div class="bg-white rounded-lg shadow p-6">
+                <h3 class="text-lg font-medium text-gray-900 mb-4">Branch Performance</h3>
+                <div class="space-y-4">
+                    <div class="flex items-center justify-between">
+                        <span class="text-sm text-gray-600">Teller Performance</span>
+                        <div class="w-48">
+                            <div class="h-2 bg-gray-200 rounded-full overflow-hidden">
+                                <div class="h-full bg-green-500 rounded-full" style="width: 85%"></div>
+                            </div>
+                        </div>
+                        <span class="text-sm font-medium">85%</span>
+                    </div>
+                    <div class="flex items-center justify-between">
+                        <span class="text-sm text-gray-600">Customer Satisfaction</span>
+                        <div class="w-48">
+                            <div class="h-2 bg-gray-200 rounded-full overflow-hidden">
+                                <div class="h-full bg-blue-500 rounded-full" style="width: 92%"></div>
+                            </div>
+                        </div>
+                        <span class="text-sm font-medium">92%</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Quick Reports -->
+            <div class="bg-white rounded-lg shadow p-6">
+                <h3 class="text-lg font-medium text-gray-900 mb-4">Quick Reports</h3>
+                <div class="grid grid-cols-2 gap-4">
+                    <a href="#" class="p-4 border rounded-lg hover:bg-gray-50 text-center">
+                        <svg class="w-8 h-8 text-indigo-600 mx-auto mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"/>
+                        </svg>
+                        <span class="text-sm font-medium">Daily Report</span>
+                    </a>
+                    <a href="#" class="p-4 border rounded-lg hover:bg-gray-50 text-center">
+                        <svg class="w-8 h-8 text-green-600 mx-auto mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
+                        </svg>
+                        <span class="text-sm font-medium">Revenue</span>
+                    </a>
                 </div>
             </div>
         </div>
+        @endif
+
+        @if(auth()->user()->role === 'super-admin')
+        <div class="mt-6 bg-white rounded-lg shadow p-6">
+            <h3 class="text-lg font-medium text-gray-900 mb-4">System Overview</h3>
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+                <div class="p-4 border rounded-lg">
+                    <div class="flex items-center justify-between mb-2">
+                        <span class="text-sm text-gray-600">Active Users</span>
+                        <span class="text-sm font-medium text-green-600">+12%</span>
+                    </div>
+                    <p class="text-2xl font-semibold">142</p>
+                </div>
+                <div class="p-4 border rounded-lg">
+                    <div class="flex items-center justify-between mb-2">
+                        <span class="text-sm text-gray-600">System Uptime</span>
+                        <span class="text-sm font-medium text-green-600">99.9%</span>
+                    </div>
+                    <p class="text-2xl font-semibold">30 Days</p>
+                </div>
+                <div class="p-4 border rounded-lg">
+                    <div class="flex items-center justify-between mb-2">
+                        <span class="text-sm text-gray-600">Security Score</span>
+                        <span class="text-sm font-medium text-yellow-600">94/100</span>
+                    </div>
+                    <p class="text-2xl font-semibold">Excellent</p>
+                </div>
+            </div>
+        </div>
+        @endif
     </div>
-    @endif
+
+    @push('scripts')
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script>
+        document.addEventListener('livewire:load', function () {
+            // Initialize any additional JavaScript here
+        });
+    </script>
+    @endpush
 </div>
