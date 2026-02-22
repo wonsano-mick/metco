@@ -1,28 +1,29 @@
 <?php
 
-use App\Livewire\Dashboard;
-use App\Livewire\Auth\Login;
-use App\Livewire\Users\UserForm;
-use App\Livewire\Users\UserShow;
-use App\Livewire\Users\UserIndex;
-use Illuminate\Support\Facades\Auth;
-use Illuminate\Support\Facades\Route;
-use App\Livewire\Accounts\AccountEdit;
-use App\Livewire\Accounts\AccountShow;
-use App\Livewire\Accounts\AccountIndex;
 use App\Livewire\Accounts\AccountCreate;
+use App\Livewire\Accounts\AccountEdit;
+use App\Livewire\Accounts\AccountIndex;
+use App\Livewire\Accounts\AccountShow;
 use App\Livewire\Accounts\AccountTransaction;
+use App\Livewire\Auth\Login;
 use App\Livewire\Customers\CustomerCreate;
 use App\Livewire\Customers\CustomerEdit;
 use App\Livewire\Customers\CustomerIndex;
 use App\Livewire\Customers\CustomerShow;
+use App\Livewire\Dashboard;
 use App\Livewire\Loans\LoanApplication;
 use App\Livewire\Loans\LoanIndex;
 use App\Livewire\Loans\LoanReview;
 use App\Livewire\Loans\LoanShow;
+use App\Livewire\Teller\TellerDashboard;
 use App\Livewire\Transactions\TransactionCreate;
 use App\Livewire\Transactions\TransactionIndex;
 use App\Livewire\Transactions\ViewTransaction;
+use App\Livewire\Users\UserForm;
+use App\Livewire\Users\UserIndex;
+use App\Livewire\Users\UserShow;
+use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Route;
 
 Route::get('/', fn() => view('welcome'))->name('home');
 
@@ -39,6 +40,10 @@ Route::middleware('guest')->group(function () {
 Route::middleware('auth')->group(function () {
 
     Route::get('/dashboard', Dashboard::class)->name('dashboard');
+
+    // Teller Dashboard route
+    Route::get('/teller/dashboard', TellerDashboard::class)
+        ->name('teller.dashboard');
 
     Route::post('/logout', function () {
         Auth::logout();

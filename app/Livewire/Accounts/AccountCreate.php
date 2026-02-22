@@ -3,7 +3,6 @@
 namespace App\Livewire\Accounts;
 
 use Livewire\Component;
-use Illuminate\Support\Str;
 use Livewire\Attributes\Url;
 use App\Models\Eloquent\User;
 use App\Models\Eloquent\Branch;
@@ -14,7 +13,6 @@ use App\Services\AuditLogService;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use App\Models\Eloquent\AccountType;
-use App\Models\Eloquent\LedgerEntry;
 use App\Models\Eloquent\Transaction;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Gate;
@@ -36,7 +34,6 @@ class AccountCreate extends Component
     // Step 2: Account Details
     public $account_type_id = '';
     public $currency = 'GHS';
-    public $initial_deposit = 0;
     public $minimum_balance = 0;
     public $overdraft_limit = 0;
     public $status = 'active';
@@ -69,6 +66,9 @@ class AccountCreate extends Component
 
     // Current step tracking
     public $currentStep = 1;
+
+    // Flag to track if current account is selected
+    public $isCurrentAccount = false;
 
     public function mount()
     {
@@ -151,30 +151,42 @@ class AccountCreate extends Component
             // Set minimum balance to account type's min_balance
             $this->minimum_balance = $this->selectedAccountType['min_balance'];
 
-            // Set initial deposit to at least the minimum balance
-            if ($this->initial_deposit < $this->minimum_balance) {
-                $this->initial_deposit = $this->minimum_balance;
-            }
+            // Check if this is a current account (by name or code)
+            $this->isCurrentAccount = $this->checkIfCurrentAccount($this->selectedAccountType);
 
-            // Set default overdraft limit based on customer type
-            $this->overdraft_limit = $this->customer_type === 'organization'
-                ? $this->selectedAccountType['min_balance'] * 2 // Higher limit for organizations
-                : $this->selectedAccountType['min_balance'] * 0.5; // Lower limit for individuals
+            // Set overdraft limit only for current accounts
+            if ($this->isCurrentAccount) {
+                $this->overdraft_limit = $this->customer_type === 'organization'
+                    ? $this->selectedAccountType['min_balance'] * 2 // Higher limit for organizations
+                    : $this->selectedAccountType['min_balance'] * 0.5; // Lower limit for individuals
+            } else {
+                // For non-current accounts, set overdraft to 0
+                $this->overdraft_limit = 0;
+            }
 
             // Default status is already set to 'active'
             $this->status = 'active';
         }
 
         $this->currentStep = 4;
-        // $this->dispatch('scroll-to-top');
     }
 
-    public function updatedInitialDeposit($value)
+    /**
+     * Check if the selected account type is a current account
+     */
+    protected function checkIfCurrentAccount($accountType): bool
     {
-        // Ensure initial deposit is at least minimum balance
-        if ($this->selectedAccountType && $value < $this->selectedAccountType['min_balance']) {
-            $this->addError('initial_deposit', 'Initial deposit must be at least ' . number_format($this->selectedAccountType['min_balance'], 2));
+        $currentAccountKeywords = ['current', 'checking', 'business', 'commercial'];
+        $name = strtolower($accountType['name'] ?? '');
+        $code = strtolower($accountType['code'] ?? '');
+
+        foreach ($currentAccountKeywords as $keyword) {
+            if (str_contains($name, $keyword) || str_contains($code, $keyword)) {
+                return true;
+            }
         }
+
+        return false;
     }
 
     public function updatedCurrency($value)
@@ -189,15 +201,16 @@ class AccountCreate extends Component
         if ($value < 0) {
             $this->minimum_balance = 0;
         }
-
-        // Ensure initial deposit is at least minimum balance
-        if ($this->initial_deposit < $value) {
-            $this->initial_deposit = $value;
-        }
     }
 
     public function updatedOverdraftLimit($value)
     {
+        // Only allow overdraft for current accounts
+        if (!$this->isCurrentAccount) {
+            $this->overdraft_limit = 0;
+            return;
+        }
+
         $this->overdraft_limit = (float) $value;
 
         // Ensure overdraft limit is not negative
@@ -227,6 +240,7 @@ class AccountCreate extends Component
             if ($this->currentStep === 2) {
                 $this->account_type_id = '';
                 $this->selectedAccountType = null;
+                $this->isCurrentAccount = false;
             } elseif ($this->currentStep === 1) {
                 $this->customer_id = null;
                 $this->selectedCustomer = null;
@@ -237,8 +251,6 @@ class AccountCreate extends Component
                     customer_id: null
                 );
             }
-
-            // $this->dispatch('scroll-to-top');
         }
     }
 
@@ -246,17 +258,20 @@ class AccountCreate extends Component
     {
         if (!$this->account_type_id) {
             $this->selectedAccountType = null;
+            $this->isCurrentAccount = false;
             return;
         }
 
         foreach ($this->accountTypes as $type) {
             if ($type['id'] == $this->account_type_id) {
                 $this->selectedAccountType = $type;
+                $this->isCurrentAccount = $this->checkIfCurrentAccount($type);
                 return;
             }
         }
 
         $this->selectedAccountType = null;
+        $this->isCurrentAccount = false;
     }
 
     protected function selectCustomerFromUrl($customerId)
@@ -283,7 +298,7 @@ class AccountCreate extends Component
                 // Still show the customer but prevent account creation
                 $this->customer_id = $customer->id;
                 $this->loadSelectedCustomerData($customer);
-                return redirect()->route('customers.show',$customer->id);
+                return redirect()->route('customers.show', $customer->id);
             }
 
             $this->customer_id = $customer->id;
@@ -301,7 +316,7 @@ class AccountCreate extends Component
         } catch (\Exception $e) {
             Log::error('Error selecting customer from URL: ' . $e->getMessage());
 
-            session()->flash('error', 'Error loading customer'.$e->getMessage());
+            session()->flash('error', 'Error loading customer' . $e->getMessage());
             return redirect()->route('accounts.create');
         }
     }
@@ -483,14 +498,6 @@ class AccountCreate extends Component
             return false;
         }
 
-        // Additional checks for individuals
-        if ($this->customer_type === 'individual') {
-            // Check if customer is at least 18 years old
-            // if ($customer->date_of_birth && now()->diffInYears($customer->date_of_birth) < 18) {
-            //     return false;
-            // }
-        }
-
         // Additional checks for organizations
         if ($this->customer_type === 'organization') {
             // Check if organization has valid registration
@@ -526,7 +533,7 @@ class AccountCreate extends Component
             if (!$this->isCustomerEligible($customer)) {
                 $this->addError('general', 'Customer is not eligible for account creation. ' .
                     ($this->customer_type === 'individual'
-                        ? 'Customer must be active, have verified KYC, and be at least 18 years old.'
+                        ? 'Customer must be active and have verified KYC.'
                         : 'Organization must be active, have verified KYC, and valid registration documents.'));
                 return;
             }
@@ -543,8 +550,6 @@ class AccountCreate extends Component
                 customer_type: $this->customer_type,
                 customer_id: $customerId
             );
-
-            // $this->dispatch('scroll-to-top');
         } catch (\Exception $e) {
             $this->addError('general', 'Error loading customer: ' . $e->getMessage());
         }
@@ -592,7 +597,6 @@ class AccountCreate extends Component
 
         // Dispatch event to update progress indicators
         $this->dispatch('step-changed', step: $step);
-        // $this->dispatch('scroll-to-top');
     }
 
     public function clearCustomerSelection()
@@ -601,7 +605,7 @@ class AccountCreate extends Component
         $this->selectedCustomer = null;
         $this->account_type_id = '';
         $this->selectedAccountType = null;
-        $this->initial_deposit = 0;
+        $this->isCurrentAccount = false;
         $this->minimum_balance = 0;
         $this->overdraft_limit = 0;
         $this->currentStep = 2;
@@ -633,14 +637,12 @@ class AccountCreate extends Component
 
     public function save()
     {
-        // dd($this->all());
         // Validate based on customer type
         $validationRules = [
             'customer_type' => 'required|in:individual,organization',
             'customer_id' => 'required|exists:customers,id',
             'account_type_id' => 'required|exists:account_types,id',
             'currency' => 'required|string|max:3',
-            'initial_deposit' => 'required|numeric|min:0',
             'minimum_balance' => 'required|numeric|min:0',
             'overdraft_limit' => 'required|numeric|min:0',
             'status' => 'required|in:active,dormant,restricted,closed',
@@ -676,13 +678,6 @@ class AccountCreate extends Component
             return;
         }
 
-        // Check minimum balance requirement
-        $accountType = AccountType::find($this->account_type_id);
-        if ($this->initial_deposit < $accountType->min_balance) {
-            $this->addError('initial_deposit', 'Initial deposit must be at least ' . number_format($accountType->min_balance, 2));
-            return;
-        }
-
         try {
             DB::beginTransaction();
 
@@ -695,8 +690,8 @@ class AccountCreate extends Component
             $metadata = [
                 'created_by' => Auth::user()->id,
                 'opened_at' => now()->toISOString(),
-                'initial_deposit' => $this->initial_deposit,
                 'customer_type' => $this->customer_type,
+                'is_current_account' => $this->isCurrentAccount,
             ];
 
             // Add organization-specific metadata
@@ -707,7 +702,7 @@ class AccountCreate extends Component
                 $metadata['tax_identification_number'] = $customer->tax_identification_number;
             }
 
-            // Create the account
+            // Create the account with 0 initial balance
             $account = Account::create([
                 'customer_id' => $this->customer_id,
                 'account_type_id' => $this->account_type_id,
@@ -725,11 +720,6 @@ class AccountCreate extends Component
                 'metadata' => $metadata,
             ]);
 
-            // If initial deposit is greater than 0, create a deposit transaction
-            if ($this->initial_deposit > 0) {
-                $this->processInitialDeposit($account, $this->initial_deposit);
-            }
-
             // Log activity
             activity()
                 ->causedBy(Auth::user())
@@ -738,7 +728,7 @@ class AccountCreate extends Component
                     'account_number' => $account->account_number,
                     'customer_id' => $account->customer_id,
                     'customer_type' => $this->customer_type,
-                    'initial_deposit' => $this->initial_deposit,
+                    'is_current_account' => $this->isCurrentAccount,
                 ])
                 ->log(($this->customer_type === 'individual' ? 'Individual' : 'Organizational') . ' account created');
 
@@ -748,7 +738,7 @@ class AccountCreate extends Component
                 'customer_id' => $account->customer_id,
                 'customer_type' => $this->customer_type,
                 'account_type_id' => $account->account_type_id,
-                'initial_deposit' => $this->initial_deposit,
+                'is_current_account' => $this->isCurrentAccount,
                 'currency' => $this->currency,
             ], [
                 'branch_id' => $this->branch_id,
@@ -759,9 +749,11 @@ class AccountCreate extends Component
 
             DB::commit();
 
-            session()->flash('success', ($this->customer_type === 'individual' ? 'Individual' : 'Organizational') . ' account created successfully.');
-            // Redirect to account details page
-            return redirect()->route('accounts.show', $account->id);
+            session()->flash('success', ($this->customer_type === 'individual' ? 'Individual' : 'Organizational') . ' account created successfully. ' .
+                'You can now make a deposit to activate the account.');
+
+            // Redirect to account details page with option to make deposit
+            return redirect()->route('accounts.show', $account->id)->with('show_deposit_modal', true);
         } catch (\Exception $e) {
             DB::rollBack();
 
@@ -777,119 +769,6 @@ class AccountCreate extends Component
             session()->flash('error', 'Failed to create account: ' . $e->getMessage());
             $this->addError('general', 'Failed to create account: ' . $e->getMessage());
         }
-    }
-
-    /**
-     * Process initial deposit for the new account
-     */
-    protected function processInitialDeposit(Account $account, float $amount)
-    {
-        try {
-            // Create a deposit transaction
-            $transaction = Transaction::create([
-                'transaction_reference' => $this->generateTransactionReference(),
-                'type' => 'cash_deposit',
-                'status' => 'completed',
-                'amount' => $amount,
-                'currency' => $account->currency,
-                'description' => 'Initial deposit for ' . ($this->customer_type === 'individual' ? 'personal' : 'organizational') . ' account opening - ' . $account->account_number,
-                'metadata' => [
-                    'purpose' => 'account_opening',
-                    'customer_type' => $this->customer_type,
-                    'branch_id' => $this->branch_id ?? 0,
-                    'teller_id' => Auth::user()->id,
-                    'ip_address' => request()->ip(),
-                    'user_agent' => request()->userAgent(),
-                    'description' => 'Initial account deposit',
-                    'cash_reference' => 'INITIAL' . now()->format('YmdHis'),
-                    'initiator_type' => 'self',
-                    'receipt_options' => ['sms' => false, 'email' => false, 'print' => true],
-                    'transaction_type' => 'cash_deposit',
-                    'customer_verified' => true,
-                    'cash_denominations' => $this->getDefaultCashDenominations($amount),
-                    'processed_by_teller' => true,
-                    'verification_method' => 'signature',
-                    'cash_handling_method' => 'cash',
-                ],
-                'initiated_by' => Auth::user()->id,
-                'initiated_at' => now(),
-                'completed_at' => now(),
-                'destination_account_id' => $account->id,
-            ]);
-
-            // Create ledger entry for the deposit
-            LedgerEntry::create([
-                'transaction_id' => $transaction->id,
-                'account_id' => $account->id,
-                'entry_type' => 'credit',
-                'amount' => $amount,
-                'currency' => $account->currency,
-                'balance_after' => $amount,
-            ]);
-
-            // Update account balances
-            $account->update([
-                'current_balance' => $amount,
-                'available_balance' => $amount,
-                'ledger_balance' => $amount,
-            ]);
-
-            // Log audit for transaction
-            AuditLogService::logTransactionCreated($transaction, [
-                'account_number' => $account->account_number,
-                'customer_id' => $account->customer_id,
-                'customer_type' => $this->customer_type,
-                'purpose' => 'account_opening',
-                'initial_deposit' => true,
-            ]);
-
-            return $transaction;
-        } catch (\Exception $e) {
-            Log::error('Failed to process initial deposit: ' . $e->getMessage(), [
-                'account_id' => $account->id,
-                'amount' => $amount,
-            ]);
-            throw $e;
-        }
-    }
-
-    /**
-     * Generate transaction reference
-     */
-    protected function generateTransactionReference(): string
-    {
-        return 'TXN' . now()->format('YmdHis') . strtoupper(Str::random(6));
-    }
-
-    /**
-     * Generate default cash denominations for the amount
-     */
-    protected function getDefaultCashDenominations(float $amount): array
-    {
-        $denominations = [
-            ['count' => 0, 'denomination' => 100],
-            ['count' => 0, 'denomination' => 50],
-            ['count' => 0, 'denomination' => 20],
-            ['count' => 0, 'denomination' => 10],
-            ['count' => 0, 'denomination' => 5],
-            ['count' => 0, 'denomination' => 1],
-            ['count' => 0, 'denomination' => 0.5],
-            ['count' => 0, 'denomination' => 0.25],
-            ['count' => 0, 'denomination' => 0.1],
-            ['count' => 0, 'denomination' => 0.05],
-            ['count' => 0, 'denomination' => 0.01],
-        ];
-
-        $remaining = $amount;
-        foreach ($denominations as &$denomination) {
-            if ($remaining >= $denomination['denomination']) {
-                $count = floor($remaining / $denomination['denomination']);
-                $denomination['count'] = $count;
-                $remaining = round($remaining - ($count * $denomination['denomination']), 2);
-            }
-        }
-
-        return $denominations;
     }
 
     /**

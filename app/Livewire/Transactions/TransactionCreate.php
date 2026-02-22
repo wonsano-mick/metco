@@ -3,7 +3,6 @@
 namespace App\Livewire\Transactions;
 
 use Livewire\Component;
-use Illuminate\Support\Str;
 use Livewire\Attributes\Layout;
 use App\Models\Eloquent\Account;
 use App\Models\Eloquent\Customer;
@@ -1087,7 +1086,7 @@ class TransactionCreate extends Component
             // Prepare common transaction data
             $transactionData = [
                 'amount' => (float) $this->amount,
-                'currency' => $this->currency,
+                'currency' => $this->currency, 
                 'description' => $this->description,
                 'metadata' => $this->prepareMetadata(),
                 'initiated_by' => Auth::id(),
@@ -1245,7 +1244,7 @@ class TransactionCreate extends Component
     }
 
     public function cancelTransaction()
-    {
+    { 
         $this->showConfirmation = false;
         $this->transactionPreview = null;
     }

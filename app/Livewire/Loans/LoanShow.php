@@ -313,7 +313,7 @@ class LoanShow extends Component
 
     public function disburseLoan()
     {
-        dd($this->loan);
+        // dd($this->loan);
         $this->validate([
             'disbursementData.method' => 'required|in:bank_transfer,cash,cheque,mobile_money',
             'disbursementData.account_id' => 'required_if:disbursementData.method,bank_transfer|exists:accounts,id',

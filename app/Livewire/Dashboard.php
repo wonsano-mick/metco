@@ -6,11 +6,9 @@ use Carbon\Carbon;
 use Livewire\Component;
 use Livewire\WithPagination;
 use App\Models\Eloquent\Loan;
-use App\Models\Eloquent\User;
 use Livewire\Attributes\Layout;
 use App\Models\Eloquent\Account;
 use App\Models\Eloquent\Customer;
-use Illuminate\Support\Facades\DB;
 use App\Models\Eloquent\Transaction;
 use Illuminate\Support\Facades\Auth;
 

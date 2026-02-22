@@ -539,7 +539,7 @@
                                                 </a>
                                             @endif
                                             @if (Gate::allows('disburse loans') && $loan->status === 'approved')
-                                                <a href="{{ route('loans.disburse', $loan->id) }}"
+                                                <a href="{{-- route('loans.disburse', $loan->id) --}}"
                                                     class="text-purple-600 hover:text-purple-900 transition-colors duration-150 p-1 rounded hover:bg-purple-50"
                                                     title="Disburse Loan">
                                                     <i class="fas fa-money-bill-wave"></i>

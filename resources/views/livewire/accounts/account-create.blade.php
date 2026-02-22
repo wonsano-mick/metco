@@ -12,7 +12,7 @@
                     <div class="flex space-x-3">
                         <a href="{{ route('accounts.index') }}"
                             class="inline-flex items-center px-4 py-2 border border-blue-400 rounded-lg text-sm font-medium text-white bg-blue-700/30 hover:bg-blue-700/50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500">
-                            <i class="fas fa-arrow-left mr-2"></i> 
+                            <i class="fas fa-arrow-left mr-2"></i>
                             Back to Accounts
                         </a>
                     </div>
@@ -61,17 +61,17 @@
             <!-- Main Form -->
             <form wire:submit.prevent="save" class="p-8">
                 @if ($customer_id && !$selectedCustomer)
-    <!-- Loading State -->
-    <div class="mb-6 p-6 bg-blue-50 border border-blue-200 rounded-lg">
-        <div class="flex items-center justify-center">
-            <div class="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
-            <div class="ml-4">
-                <h3 class="text-lg font-medium text-blue-900">Loading Customer Details</h3>
-                <p class="text-blue-700">Please wait while we load the customer information...</p>
-            </div>
-        </div>
-    </div>
-@endif
+                    <!-- Loading State -->
+                    <div class="mb-6 p-6 bg-blue-50 border border-blue-200 rounded-lg">
+                        <div class="flex items-center justify-center">
+                            <div class="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
+                            <div class="ml-4">
+                                <h3 class="text-lg font-medium text-blue-900">Loading Customer Details</h3>
+                                <p class="text-blue-700">Please wait while we load the customer information...</p>
+                            </div>
+                        </div>
+                    </div>
+                @endif
 
 
                 <!-- Step 1: Customer Type Selection -->
@@ -644,7 +644,7 @@
                             @endif
 
                             <!-- Account Configuration Form -->
-                            <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                            <div class="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-3 gap-6">
                                 <!-- Currency -->
                                 <div>
                                     <label for="currency" class="block text-sm font-medium text-gray-700 mb-2">
@@ -691,43 +691,17 @@
                                     @enderror
                                 </div>
 
-                                <!-- Initial Deposit -->
-                                <div>
-                                    <label for="initial_deposit" class="block text-sm font-medium text-gray-700 mb-2">
-                                        Initial Deposit *
-                                    </label>
-                                    <div class="relative rounded-lg shadow-sm">
-                                        <div
-                                            class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                                            <span class="text-gray-500">{{ $currencySymbol }}</span>
-                                        </div>
-                                        <input type="number" id="initial_deposit" wire:model.lazy="initial_deposit"
-                                            step="0.01" min="0"
-                                            class="block w-full pl-10 pr-12 border border-gray-300 rounded-lg shadow-sm py-3 px-4 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                                            placeholder="0.00">
-                                        <div
-                                            class="absolute inset-y-0 right-0 pr-3 flex items-center pointer-events-none">
-                                            <span class="text-gray-500">{{ $currency }}</span>
-                                        </div>
-                                    </div>
-                                    @error('initial_deposit')
-                                        <p class="mt-2 text-sm text-red-600">{{ $message }}</p>
-                                    @enderror
-                                    @if ($selectedAccountType && $selectedAccountType['min_balance'] > 0)
-                                        <p class="mt-2 text-xs text-gray-500">
-                                            Minimum deposit:
-                                            {{ number_format($selectedAccountType['min_balance'], 2) }}
-                                            {{ $currency }}
-                                        </p>
-                                    @endif
-                                </div>
-
-                                <!-- Overdraft Limit -->
+                                <!-- Overdraft Limit - Only enabled for current accounts -->
                                 <div>
                                     <label for="overdraft_limit" class="block text-sm font-medium text-gray-700 mb-2">
-                                        Overdraft Limit *
-                                        <span class="text-xs text-gray-500 font-normal">(Maximum negative
-                                            balance)</span>
+                                        Overdraft Limit
+                                        @if ($isCurrentAccount)
+                                            <span class="text-xs text-gray-500 font-normal">(Maximum negative
+                                                balance)</span>
+                                        @else
+                                            <span class="text-xs text-gray-500 font-normal">(Only available for Current
+                                                Accounts)</span>
+                                        @endif
                                     </label>
                                     <div class="relative rounded-lg shadow-sm">
                                         <div
@@ -736,8 +710,8 @@
                                         </div>
                                         <input type="number" id="overdraft_limit" wire:model.lazy="overdraft_limit"
                                             step="0.01" min="0"
-                                            class="block w-full pl-10 pr-12 border border-gray-300 rounded-lg shadow-sm py-3 px-4 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                                            placeholder="0.00">
+                                            class="block w-full pl-10 pr-12 border border-gray-300 rounded-lg shadow-sm py-3 px-4 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 {{ !$isCurrentAccount ? 'bg-gray-100' : '' }}"
+                                            placeholder="0.00" {{ !$isCurrentAccount ? 'disabled' : '' }}>
                                         <div
                                             class="absolute inset-y-0 right-0 pr-3 flex items-center pointer-events-none">
                                             <span class="text-gray-500">{{ $currency }}</span>
@@ -746,13 +720,21 @@
                                     @error('overdraft_limit')
                                         <p class="mt-2 text-sm text-red-600">{{ $message }}</p>
                                     @enderror
-                                    @if ($customer_type === 'organization')
+
+                                    @if ($isCurrentAccount && $customer_type === 'organization')
                                         <p class="mt-2 text-xs text-purple-600">
                                             <i class="fas fa-info-circle mr-1"></i>
-                                            Organizational accounts may have higher overdraft limits
+                                            Organizational current accounts may have higher overdraft limits
+                                        </p>
+                                    @elseif(!$isCurrentAccount)
+                                        <p class="mt-2 text-xs text-gray-500">
+                                            <i class="fas fa-lock mr-1"></i>
+                                            Overdraft is only available for Current Accounts
                                         </p>
                                     @endif
                                 </div>
+                            </div>
+
 
                                 <!-- Additional Fields for Organizations -->
                                 @if ($customer_type === 'organization')
@@ -808,7 +790,6 @@
                                         <p class="mt-2 text-sm text-red-600">{{ $message }}</p>
                                     @enderror
                                 </div>
-                            </div>
                         </div>
                     </div>
                 @endif
@@ -944,12 +925,7 @@
                                         <span class="text-sm text-gray-600">Currency:</span>
                                         <span class="text-sm font-medium text-gray-900">{{ $currency }}</span>
                                     </div>
-                                    <div class="flex justify-between items-center py-2 border-b border-gray-100">
-                                        <span class="text-sm text-gray-600">Initial Deposit:</span>
-                                        <span class="text-sm font-bold text-gray-900">
-                                            {{ number_format($initial_deposit, 2) }} {{ $currency }}
-                                        </span>
-                                    </div>
+                                    <!-- REMOVED: Initial Deposit line -->
                                     <div class="flex justify-between items-center py-2 border-b border-gray-100">
                                         <span class="text-sm text-gray-600">Minimum Balance:</span>
                                         <span class="text-sm font-medium text-gray-900">
@@ -959,7 +935,11 @@
                                     <div class="flex justify-between items-center py-2 border-b border-gray-100">
                                         <span class="text-sm text-gray-600">Overdraft Limit:</span>
                                         <span class="text-sm font-medium text-gray-900">
-                                            {{ number_format($overdraft_limit, 2) }} {{ $currency }}
+                                            @if ($isCurrentAccount)
+                                                {{ number_format($overdraft_limit, 2) }} {{ $currency }}
+                                            @else
+                                                <span class="text-gray-400">Not applicable (non-current account)</span>
+                                            @endif
                                         </span>
                                     </div>
                                     <div class="flex justify-between items-center py-2 border-b border-gray-100">
@@ -1023,7 +1003,38 @@
                                 </div>
                             </div>
                         </div>
-
+                        <!-- Info Message about Account Creation -->
+                        <div class="mt-6 p-4 bg-blue-50 border border-blue-200 rounded-lg">
+                            <div class="flex">
+                                <div class="flex-shrink-0">
+                                    <i class="fas fa-info-circle text-blue-500 text-xl"></i>
+                                </div>
+                                <div class="ml-3">
+                                    <h3 class="text-sm font-medium text-blue-800">Important Information</h3>
+                                    <div class="mt-2 text-sm text-blue-700">
+                                        <p class="mb-1">
+                                            <i class="fas fa-check-circle mr-1 text-xs"></i>
+                                            <strong>Initial Deposit:</strong> Accounts are created with zero balance.
+                                            You can make a deposit after account creation from the account details page.
+                                        </p>
+                                        @if ($isCurrentAccount)
+                                            <p>
+                                                <i class="fas fa-check-circle mr-1 text-xs"></i>
+                                                <strong>Overdraft:</strong> This is a current account and qualifies for
+                                                overdraft facilities. The overdraft limit can be adjusted after account
+                                                creation.
+                                            </p>
+                                        @else
+                                            <p>
+                                                <i class="fas fa-check-circle mr-1 text-xs"></i>
+                                                <strong>Overdraft:</strong> This is not a current account, so overdraft
+                                                is not applicable.
+                                            </p>
+                                        @endif
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
                         <!-- Action Buttons -->
                         <div class="mt-10 flex justify-between items-center pt-8 border-t border-gray-200">
                             <div>
