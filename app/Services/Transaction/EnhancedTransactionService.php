@@ -2,16 +2,17 @@
 
 namespace App\Services\Transaction;
 
-use Illuminate\Support\Str;
 use App\Models\Eloquent\Account;
-use App\Models\Eloquent\SystemAccount;
 use App\Models\Eloquent\AuditLog;
 use App\Models\Eloquent\LedgerEntry;
+use App\Models\Eloquent\SystemAccount;
 use App\Models\Eloquent\SystemLedgerEntry;
 use App\Models\Eloquent\Transaction;
+use App\Models\Eloquent\User;
+use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
-use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Str;
 
 class EnhancedTransactionService
 {
@@ -32,7 +33,8 @@ class EnhancedTransactionService
     {
         return DB::transaction(function () use ($data) {
             $account = Account::findOrFail($data['account_id']);
-            $tellerAccount = $this->getTellerAccount();
+            // Get the specific teller's account for the current user
+            $tellerAccount = $this->getCurrentTellerAccount();
 
             // Create transaction record
             $transaction = Transaction::create([
@@ -112,11 +114,12 @@ class EnhancedTransactionService
     /**
      * Process withdrawal with teller cash account
      */
-    public function withdraw(array $data): Transaction 
+    public function withdraw(array $data): Transaction
     {
         return DB::transaction(function () use ($data) {
             $account = Account::findOrFail($data['account_id']);
-            $tellerAccount = $this->getTellerAccount();
+            // Get the specific teller's account for the current user
+            $tellerAccount = $this->getCurrentTellerAccount();
 
             // Check teller has sufficient cash
             if ($tellerAccount->balance < $data['amount']) {
@@ -185,6 +188,179 @@ class EnhancedTransactionService
                     'account_id' => $account->id,
                     'amount' => $data['amount'],
                     'teller_balance' => $tellerAccount->balance,
+                ]);
+
+                return $transaction;
+            } catch (\Exception $e) {
+                $transaction->update([
+                    'status' => 'failed',
+                    'failed_at' => now(),
+                    'failure_reason' => $e->getMessage(),
+                ]);
+                throw $e;
+            }
+        });
+    }
+
+    /**
+     * Process cash deposit with teller cash account
+     */
+    public function cashDeposit(array $data): Transaction
+    {
+        return DB::transaction(function () use ($data) {
+            $account = Account::findOrFail($data['account_id']);
+            // Get the specific teller's account for the current user
+            $tellerAccount = $this->getCurrentTellerAccount();
+
+            $transaction = Transaction::create([
+                'transaction_reference' => $this->generateReference('DEP'),
+                'type' => 'cash_deposit',
+                'status' => 'pending',
+                'amount' => $data['amount'],
+                'currency' => $account->currency,
+                'description' => $data['description'] ?? 'Cash deposit',
+                'metadata' => $this->buildMetadata($data),
+                'initiated_by' => $this->userId,
+                'initiated_at' => now(),
+                'destination_account_id' => $account->id,
+                'branch_id' => $this->branchId,
+            ]);
+
+            try {
+                // DOUBLE-ENTRY #1: Credit customer account
+                LedgerEntry::create([
+                    'transaction_id' => $transaction->id,
+                    'account_id' => $account->id,
+                    'entry_type' => 'credit',
+                    'amount' => $data['amount'],
+                    'currency' => $account->currency,
+                    'balance_before' => $account->current_balance,
+                    'balance_after' => $account->current_balance + $data['amount'],
+                    'available_balance_before' => $account->available_balance,
+                    'available_balance_after' => $account->available_balance + $data['amount'],
+                    'description' => 'Cash deposit credit',
+                ]);
+
+                // DOUBLE-ENTRY #2: Debit teller cash account (cash received)
+                SystemLedgerEntry::create([
+                    'system_account_id' => $tellerAccount->id,
+                    'transaction_id' => $transaction->id,
+                    'entry_type' => 'debit',
+                    'amount' => $data['amount'],
+                    'currency' => $account->currency,
+                    'balance_before' => $tellerAccount->balance,
+                    'balance_after' => $tellerAccount->balance + $data['amount'],
+                    'description' => 'Cash received for deposit',
+                    'created_by' => $this->userId,
+                ]);
+
+                // Update customer account balance
+                $account->increment('current_balance', $data['amount']);
+                $account->increment('available_balance', $data['amount']);
+
+                // Update teller account balance
+                $tellerAccount->increment('balance', $data['amount']);
+
+                // Mark transaction as completed
+                $transaction->update([
+                    'status' => 'completed',
+                    'completed_at' => now(),
+                    'completed_by' => $this->userId,
+                ]);
+
+                $this->logAudit($transaction, 'cash_deposit_completed', [
+                    'account_id' => $account->id,
+                    'amount' => $data['amount'],
+                    'teller_balance' => $tellerAccount->balance,
+                ]);
+
+                return $transaction;
+            } catch (\Exception $e) {
+                $transaction->update([
+                    'status' => 'failed',
+                    'failed_at' => now(),
+                    'failure_reason' => $e->getMessage(),
+                ]);
+                throw $e;
+            }
+        });
+    }
+
+    /**
+     * Process transfer between accounts
+     */
+    public function transfer(array $data): Transaction
+    {
+        return DB::transaction(function () use ($data) {
+            $fromAccount = Account::findOrFail($data['from_account_id']);
+            $toAccount = Account::findOrFail($data['to_account_id']);
+
+            // Check if source account has sufficient funds
+            if ($fromAccount->available_balance < $data['amount']) {
+                throw new \Exception('Insufficient funds in source account');
+            }
+
+            $transaction = Transaction::create([
+                'transaction_reference' => $this->generateReference('TRF'),
+                'type' => 'transfer',
+                'status' => 'pending',
+                'amount' => $data['amount'],
+                'currency' => $fromAccount->currency,
+                'description' => $data['description'] ?? 'Fund transfer',
+                'metadata' => $this->buildMetadata($data),
+                'initiated_by' => $this->userId,
+                'initiated_at' => now(),
+                'source_account_id' => $fromAccount->id,
+                'destination_account_id' => $toAccount->id,
+                'branch_id' => $this->branchId,
+            ]);
+
+            try {
+                // DOUBLE-ENTRY #1: Debit source account
+                LedgerEntry::create([
+                    'transaction_id' => $transaction->id,
+                    'account_id' => $fromAccount->id,
+                    'entry_type' => 'debit',
+                    'amount' => $data['amount'],
+                    'currency' => $fromAccount->currency,
+                    'balance_before' => $fromAccount->current_balance,
+                    'balance_after' => $fromAccount->current_balance - $data['amount'],
+                    'available_balance_before' => $fromAccount->available_balance,
+                    'available_balance_after' => $fromAccount->available_balance - $data['amount'],
+                    'description' => 'Transfer debit',
+                ]);
+
+                // DOUBLE-ENTRY #2: Credit destination account
+                LedgerEntry::create([
+                    'transaction_id' => $transaction->id,
+                    'account_id' => $toAccount->id,
+                    'entry_type' => 'credit',
+                    'amount' => $data['amount'],
+                    'currency' => $toAccount->currency,
+                    'balance_before' => $toAccount->current_balance,
+                    'balance_after' => $toAccount->current_balance + $data['amount'],
+                    'available_balance_before' => $toAccount->available_balance,
+                    'available_balance_after' => $toAccount->available_balance + $data['amount'],
+                    'description' => 'Transfer credit',
+                ]);
+
+                // Update balances
+                $fromAccount->decrement('current_balance', $data['amount']);
+                $fromAccount->decrement('available_balance', $data['amount']);
+                $toAccount->increment('current_balance', $data['amount']);
+                $toAccount->increment('available_balance', $data['amount']);
+
+                // Mark transaction as completed
+                $transaction->update([
+                    'status' => 'completed',
+                    'completed_at' => now(),
+                    'completed_by' => $this->userId,
+                ]);
+
+                $this->logAudit($transaction, 'transfer_completed', [
+                    'from_account_id' => $fromAccount->id,
+                    'to_account_id' => $toAccount->id,
+                    'amount' => $data['amount'],
                 ]);
 
                 return $transaction;
@@ -402,11 +578,11 @@ class EnhancedTransactionService
     public function topUpTeller(float $amount, string $reference): Transaction
     {
         return DB::transaction(function () use ($amount, $reference) {
-            $tellerAccount = $this->getTellerAccount();
+            $tellerAccount = $this->getCurrentTellerAccount();
 
             $transaction = Transaction::create([
                 'transaction_reference' => $this->generateReference('TOP'),
-                'type' => 'adjustment',
+                'type' => 'teller_topup',
                 'status' => 'completed',
                 'amount' => $amount,
                 'currency' => 'GHS',
@@ -446,7 +622,7 @@ class EnhancedTransactionService
     public function withdrawTellerCash(float $amount, string $reference): Transaction
     {
         return DB::transaction(function () use ($amount, $reference) {
-            $tellerAccount = $this->getTellerAccount();
+            $tellerAccount = $this->getCurrentTellerAccount();
 
             if ($tellerAccount->balance < $amount) {
                 throw new \Exception('Insufficient cash in teller drawer');
@@ -454,7 +630,7 @@ class EnhancedTransactionService
 
             $transaction = Transaction::create([
                 'transaction_reference' => $this->generateReference('WDL'),
-                'type' => 'adjustment',
+                'type' => 'teller_withdrawal',
                 'status' => 'completed',
                 'amount' => $amount,
                 'currency' => 'GHS',
@@ -489,16 +665,41 @@ class EnhancedTransactionService
     }
 
     /**
-     * Get or create teller account for current user/branch
+     * Get the teller account for the currently authenticated user
+     * This is used when a teller processes customer transactions
      */
-    private function getTellerAccount(): SystemAccount
+    private function getCurrentTellerAccount(): SystemAccount
+    {
+        $userId = $this->userId;
+
+        // Try to find teller account for current user
+        $tellerAccount = SystemAccount::where('type', SystemAccount::TYPE_TELLER)
+            ->where(function ($query) use ($userId) {
+                $query->where('code', 'TELLER-' . str_pad($userId, 5, '0', STR_PAD_LEFT))
+                    ->orWhere('metadata->user_id', $userId);
+            })
+            ->first();
+
+        // If not found, create it
+        if (!$tellerAccount) {
+            $tellerAccount = $this->createTellerAccountForUser($userId);
+        }
+
+        return $tellerAccount;
+    }
+
+    /**
+     * Get the main teller account (used for system-level operations)
+     * This is kept for backward compatibility but not used for customer transactions
+     */
+    private function getMainTellerAccount(): SystemAccount
     {
         $tellerAccount = SystemAccount::where('type', SystemAccount::TYPE_TELLER)
             ->where('code', 'TELLER-CASH-001')
             ->first();
 
         if (!$tellerAccount) {
-            throw new \Exception('Teller account not configured. Please run system account migration.');
+            throw new \Exception('Main teller account not configured. Please run system account migration.');
         }
 
         return $tellerAccount;
@@ -549,5 +750,188 @@ class EnhancedTransactionService
         } catch (\Exception $e) {
             Log::error('Failed to log audit: ' . $e->getMessage());
         }
+    }
+
+    /**
+     * Process teller cash top-up for a specific teller (Manager/Super-admin action)
+     */
+    public function topUpTellerForUser(int $tellerId, float $amount, string $reference): Transaction
+    {
+        return DB::transaction(function () use ($tellerId, $amount, $reference) {
+            // Get the teller's specific account
+            $tellerAccount = $this->getTellerAccountForUser($tellerId);
+
+            if (!$tellerAccount) {
+                // Create teller account if it doesn't exist
+                $tellerAccount = $this->createTellerAccountForUser($tellerId);
+            }
+
+            $teller = User::findOrFail($tellerId);
+
+            $transaction = Transaction::create([
+                'transaction_reference' => $this->generateReference('TOP'),
+                'type' => 'teller_topup',
+                'status' => 'completed',
+                'amount' => $amount,
+                'currency' => 'GHS',
+                'description' => 'Teller cash top-up by manager',
+                'metadata' => [
+                    'reference' => $reference,
+                    'teller_id' => $tellerId,
+                    'teller_name' => $teller->full_name,
+                    'manager_id' => $this->userId,
+                    'branch_id' => $teller->branch_id,
+                    'action' => 'manager_topup',
+                ],
+                'initiated_by' => $this->userId,
+                'initiated_at' => now(),
+                'completed_at' => now(),
+                'completed_by' => $this->userId,
+            ]);
+
+            SystemLedgerEntry::create([
+                'system_account_id' => $tellerAccount->id,
+                'transaction_id' => $transaction->id,
+                'entry_type' => 'debit',
+                'amount' => $amount,
+                'currency' => 'GHS',
+                'balance_before' => $tellerAccount->balance,
+                'balance_after' => $tellerAccount->balance + $amount,
+                'description' => 'Teller cash top-up by manager: ' . $reference,
+                'created_by' => $this->userId,
+            ]);
+
+            $tellerAccount->increment('balance', $amount);
+
+            $this->logAudit($transaction, 'teller_topup_by_manager', [
+                'teller_id' => $tellerId,
+                'amount' => $amount,
+                'reference' => $reference,
+                'new_balance' => $tellerAccount->balance,
+            ]);
+
+            return $transaction;
+        });
+    }
+
+    /**
+     * Process teller cash withdrawal for a specific teller (Manager/Super-admin action)
+     */
+    public function withdrawTellerCashForUser(int $tellerId, float $amount, string $reference): Transaction
+    {
+        return DB::transaction(function () use ($tellerId, $amount, $reference) {
+            // Get the teller's specific account
+            $tellerAccount = $this->getTellerAccountForUser($tellerId);
+
+            if (!$tellerAccount) {
+                throw new \Exception('Teller cash account not found for this user.');
+            }
+
+            $teller = User::findOrFail($tellerId);
+
+            // Check sufficient balance
+            if ($tellerAccount->balance < $amount) {
+                throw new \Exception('Insufficient cash in teller drawer. Available: ' . number_format($tellerAccount->balance, 2));
+            }
+
+            $transaction = Transaction::create([
+                'transaction_reference' => $this->generateReference('WTH'),
+                'type' => 'teller_withdrawal',
+                'status' => 'completed',
+                'amount' => $amount,
+                'currency' => 'GHS',
+                'description' => 'Teller cash withdrawal by manager',
+                'metadata' => [
+                    'reference' => $reference,
+                    'teller_id' => $tellerId,
+                    'teller_name' => $teller->full_name,
+                    'manager_id' => $this->userId,
+                    'branch_id' => $teller->branch_id,
+                    'action' => 'manager_withdrawal',
+                ],
+                'initiated_by' => $this->userId,
+                'initiated_at' => now(),
+                'completed_at' => now(),
+                'completed_by' => $this->userId,
+            ]);
+
+            SystemLedgerEntry::create([
+                'system_account_id' => $tellerAccount->id,
+                'transaction_id' => $transaction->id,
+                'entry_type' => 'credit',
+                'amount' => $amount,
+                'currency' => 'GHS',
+                'balance_before' => $tellerAccount->balance,
+                'balance_after' => $tellerAccount->balance - $amount,
+                'description' => 'Teller cash withdrawal by manager: ' . $reference,
+                'created_by' => $this->userId,
+            ]);
+
+            $tellerAccount->decrement('balance', $amount);
+
+            $this->logAudit($transaction, 'teller_withdrawal_by_manager', [
+                'teller_id' => $tellerId,
+                'amount' => $amount,
+                'reference' => $reference,
+                'new_balance' => $tellerAccount->balance,
+            ]);
+
+            return $transaction;
+        });
+    }
+
+    /**
+     * Get teller account for a specific user
+     */
+    private function getTellerAccountForUser(int $userId): ?SystemAccount
+    {
+        $teller = User::find($userId);
+
+        if (!$teller) {
+            return null;
+        }
+
+        // Try to find existing teller account
+        $tellerAccount = SystemAccount::where('type', SystemAccount::TYPE_TELLER)
+            ->where(function ($query) use ($userId) {
+                $query->where('code', 'TELLER-' . str_pad($userId, 5, '0', STR_PAD_LEFT))
+                    ->orWhere('metadata->user_id', $userId);
+            })
+            ->first();
+
+        return $tellerAccount;
+    }
+
+    /**
+     * Create teller account for a specific user
+     */
+    private function createTellerAccountForUser(int $userId): SystemAccount
+    {
+        $teller = User::findOrFail($userId);
+
+        // Generate a unique code
+        $code = 'TELLER-' . str_pad($userId, 5, '0', STR_PAD_LEFT);
+
+        // Check if account already exists (avoid race condition)
+        $existingAccount = SystemAccount::where('code', $code)->first();
+        if ($existingAccount) {
+            return $existingAccount;
+        }
+
+        // Create new teller account for this specific teller
+        return SystemAccount::create([
+            'type' => SystemAccount::TYPE_TELLER,
+            'code' => $code,
+            'name' => 'Teller Cash Account - ' . $teller->full_name . ' (ID: ' . $userId . ')',
+            'balance' => 0,
+            'currency' => 'GHS',
+            'is_active' => 1,
+            'metadata' => json_encode([
+                'user_id' => $userId,
+                'branch_id' => $teller->branch_id,
+                'created_by' => $this->userId,
+                'created_at' => now()->toIso8601String(),
+            ]),
+        ]);
     }
 }

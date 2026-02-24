@@ -24,6 +24,9 @@ return new class extends Migration
 
             // Transaction Details
             $table->enum('type', [
+                'initial_deposit',
+                'teller_topup',
+                'withdraw',
                 'transfer',
                 'deposit',
                 'withdrawal',
@@ -40,7 +43,7 @@ return new class extends Migration
                 'online_transfer',
                 'standing_order',
                 'direct_debit'
-            ])->default('transfer');
+            ])->default('deposit');
 
             $table->enum('status', [
                 'pending',
@@ -54,7 +57,9 @@ return new class extends Migration
             ])->default('pending');
 
             $table->enum('category', [
-                'transfer',
+                'initial_deposit',
+                'teller_topup',    
+            'transfer',
                 'deposit',
                 'withdrawal',
                 'payment',
@@ -63,7 +68,7 @@ return new class extends Migration
                 'interest',
                 'adjustment',
                 'other'
-            ])->default('transfer');
+            ])->default('deposit');
 
             // Financial Details
             $table->decimal('amount', 18, 4)->default(0);

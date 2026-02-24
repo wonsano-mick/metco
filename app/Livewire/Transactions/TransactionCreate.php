@@ -12,13 +12,12 @@ use App\Models\Eloquent\Beneficiary;
 use App\Models\Eloquent\Transaction;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Gate;
-use Illuminate\Support\Facades\Hash;
 use App\Models\Eloquent\TransactionLimit;
-use App\Services\Transaction\TransactionService;
+use App\Services\Transaction\EnhancedTransactionService;
 
 class TransactionCreate extends Component
 {
-    #[Validate('required|in:transfer,withdrawal,deposit,bill_payment,cash_deposit,cheque_deposit,loan_payment,fee_collection,adjustment')]
+    #[Validate('required|in:transfer,withdrawal,deposit,cash_deposit,cheque_deposit,bill_payment,loan_payment,fee_collection,adjustment,initial_deposit')]
     public $transactionType = 'transfer';
 
     #[Validate('required|exists:customers,id')]
@@ -36,7 +35,7 @@ class TransactionCreate extends Component
     #[Validate('required|string|max:255')]
     public $description = '';
 
-    #[Validate('required|string')]
+    #[Validate('required_if:transactionType,transfer,deposit,cash_deposit,cheque_deposit,loan_payment,fee_collection,adjustment|string')]
     public $transactionPurpose = '';
 
     // New: Transaction initiator type (self or third-party)
@@ -143,14 +142,18 @@ class TransactionCreate extends Component
     public $allAccounts = [];
     public $beneficiaries = [];
     public $tellers = [];
-    public $supervisors = [];
+    public $supervisors;
 
     // Customer search
-    public $customerSearch = '';
+    public $accountSearch = '';
     public $searchResults = [];
     public $showSearchResults = false;
     public $isSearching = false;
     public $selectedCustomer = null;
+    public $selectedAccount = null;
+
+    // Flag to check if initial deposit is done
+    public $hasInitialDeposit = false;
 
     // Relationship options for third party
     public $relationshipOptions = [
@@ -177,7 +180,7 @@ class TransactionCreate extends Component
         'other' => 'Other',
     ];
 
-    // Transaction purposes
+    // Transaction purposes - NOW ONLY FOR NON-WITHDRAWAL TRANSACTIONS
     public $transactionPurposes = [
         'personal' => 'Personal Transaction',
         'business' => 'Business Transaction',
@@ -239,7 +242,6 @@ class TransactionCreate extends Component
         'close-search-results' => 'closeSearchResults',
     ];
 
-
     public function mount()
     {
         $user = Auth::user();
@@ -259,6 +261,10 @@ class TransactionCreate extends Component
 
         // Initialize cash denominations
         $this->initializeCashDenominations();
+
+        // Ensure total steps is 4
+        $this->totalSteps = 4;
+        $this->step = 1;
     }
 
     private function loadInitialData()
@@ -274,25 +280,46 @@ class TransactionCreate extends Component
         // Load tellers and supervisors from same branch
         if ($user->branch_id) {
             $this->tellers = \App\Models\Eloquent\User::where('branch_id', $user->branch_id)
-                ->whereHas('roles', function ($q) {
-                    $q->whereIn('name', ['teller', 'manager']);
+                ->where(function ($q) {
+                    $q->where('role', 'teller')
+                        ->orWhere('role', 'manager');
                 })
-                ->active()
+                ->where('status', 'active')
                 ->get();
 
             $this->supervisors = \App\Models\Eloquent\User::where('branch_id', $user->branch_id)
-                ->whereHas('roles', function ($q) {
-                    $q->where('name', 'supervisor');
-                })
-                ->active()
+                ->where('role', 'supervisor')
+                ->where('status', 'active')
                 ->get();
         }
     }
 
-    // Get search results property
+    // Get available transaction types based on initial deposit status
+    public function getAvailableTransactionTypes()
+    {
+        $types = [
+            'transfer' => 'Transfer',
+            'withdrawal' => 'Withdrawal',
+            'cash_deposit' => 'Cash Deposit',
+            'cheque_deposit' => 'Cheque Deposit',
+            'bill_payment' => 'Bill Payment',
+            'loan_payment' => 'Loan Payment',
+            'fee_collection' => 'Fee Collection',
+            'adjustment' => 'Adjustment',
+        ];
+
+        // If no initial deposit has been made, only show initial deposit option
+        if (!$this->hasInitialDeposit && $this->sourceAccountId) {
+            return ['initial_deposit' => 'Initial Deposit'];
+        }
+
+        return $types;
+    }
+
+    // Get search results property - NOW SEARCHES BY ACCOUNT NUMBER ONLY
     public function getSearchResultsProperty()
     {
-        if (!$this->customerSearch) {
+        if (!$this->accountSearch || strlen($this->accountSearch) < 3) {
             return [];
         }
 
@@ -301,49 +328,31 @@ class TransactionCreate extends Component
             return [];
         }
 
-        $query = Customer::query();
+        // Search for accounts by account number only
+        $query = Account::query()
+            ->where('account_number', 'like', '%' . $this->accountSearch . '%')
+            ->where('status', 'active')
+            ->with(['customer', 'accountType']);
 
         // Filter by branch if user doesn't have all-branch access
         if (!$user->can('view all customers') && $user->branch_id) {
-            $query->where('branch_id', $user->branch_id);
+            $query->whereHas('customer', function ($q) use ($user) {
+                $q->where('branch_id', $user->branch_id);
+            });
         }
 
-        // Apply search filter
-        $query->where(function ($q) {
-            $q->where('customer_number', 'like', '%' . $this->customerSearch . '%')
-                ->orWhere('first_name', 'like', '%' . $this->customerSearch . '%')
-                ->orWhere('last_name', 'like', '%' . $this->customerSearch . '%')
-                ->orWhere('email', 'like', '%' . $this->customerSearch . '%')
-                ->orWhere('phone', 'like', '%' . $this->customerSearch . '%')
-                ->orWhere('id_number', 'like', '%' . $this->customerSearch . '%');
-        });
-
-        // Only show active customers with verified KYC
-        $query->where('status', 'active')
-            ->where('kyc_status', 'verified');
-
-        // ONLY SHOW CUSTOMERS WITH AT LEAST ONE ACTIVE ACCOUNT
-        $query->whereHas('accounts', function ($q) {
-            $q->where('status', 'active');
-        });
-
         try {
-            return $query->with(['accounts.accountType'])
-                ->orderBy('first_name')
-                ->orderBy('last_name')
-                ->take(10)
-                ->get();
+            return $query->limit(10)->get();
         } catch (\Exception $e) {
-            Log::error('Customer search failed: ' . $e->getMessage());
+            Log::error('Account search failed: ' . $e->getMessage());
             return [];
         }
     }
 
-
-    // Updated customer search method
-    public function updatedCustomerSearch($value)
+    // Updated account search method
+    public function updatedAccountSearch($value)
     {
-        if (empty($value)) {
+        if (empty($value) || strlen($value) < 3) {
             $this->searchResults = [];
             $this->showSearchResults = false;
             return;
@@ -358,16 +367,99 @@ class TransactionCreate extends Component
         $this->isSearching = false;
     }
 
-    // Select customer method
-    public function selectCustomer($customerId)
+    // Select account method - AUTO SELECTS THE ACCOUNT
+    // public function selectAccount($accountId)
+    // {
+    //     $account = Account::with(['customer', 'accountType'])->find($accountId);
+
+    //     if ($account && $account->customer) {
+    //         $customer = $account->customer;
+
+    //         // Set customer ID
+    //         $this->customerId = $customer->id;
+
+    //         // Set source account ID
+    //         $this->sourceAccountId = $account->id;
+    //         $this->selectedAccount = $account;
+
+    //         // Update account search display
+    //         $this->accountSearch = $account->account_number . ' - ' . $customer->full_name;
+
+    //         // Store selected customer data
+    //         $this->selectedCustomer = [
+    //             'id' => $customer->id,
+    //             'full_name' => $customer->full_name,
+    //             'customer_number' => $customer->customer_number,
+    //             'email' => $customer->email,
+    //             'phone' => $customer->phone,
+    //             'id_number' => $customer->id_number,
+    //             'profile_photo_url' => $customer->profile_photo_url ?? $this->getDefaultProfilePhoto($customer->full_name),
+    //             'signature_url' => $customer->signature_image_url,
+    //             'signature_image_path' => $customer->signature_image_path,
+    //             'kyc_status' => $customer->kyc_status,
+    //             'accounts' => $customer->accounts->map(function ($acc) {
+    //                 return [
+    //                     'id' => $acc->id,
+    //                     'account_number' => $acc->account_number,
+    //                     'current_balance' => $acc->current_balance,
+    //                     'available_balance' => $acc->available_balance,
+    //                     'currency' => $acc->currency,
+    //                     'status' => $acc->status,
+    //                     'account_type' => $acc->accountType ? [
+    //                         'name' => $acc->accountType->name,
+    //                     ] : null,
+    //                 ];
+    //             })->toArray(),
+    //         ];
+
+    //         // Check if initial deposit has been done for this account
+    //         $this->hasInitialDeposit = $this->checkInitialDeposit($account->id);
+
+    //         // Load customer accounts for selection
+    //         $this->customerAccounts = $customer->accounts()
+    //             ->where('status', 'active')
+    //             ->with(['accountType'])
+    //             ->get();
+
+    //         // Load customer beneficiaries
+    //         $this->beneficiaries = $customer->beneficiaries()
+    //             ->where('is_active', true)
+    //             ->get();
+
+    //         // Set customer contact info for receipts
+    //         $this->customerEmail = $customer->email;
+    //         $this->customerPhone = $customer->phone;
+
+    //         // Reset other fields
+    //         $this->reset(['destinationAccountId', 'amount', 'transactionInitiator']);
+    //         $this->updateAvailableBalance();
+
+    //         // Close search results
+    //         $this->closeSearchResults();
+
+    //         // Dispatch event to focus on amount field
+    //         $this->dispatch('account-selected');
+    //     }
+    // }
+
+    public function selectAccount($accountId)
     {
-        $customer = Customer::with(['accounts.accountType'])->find($customerId);
+        $account = Account::with(['customer', 'accountType'])->find($accountId);
 
-        if ($customer) {
+        if ($account && $account->customer) {
+            $customer = $account->customer;
+
+            // Set customer ID
             $this->customerId = $customer->id;
-            $this->customerSearch = $customer->full_name . ' (#' . $customer->customer_number . ')';
 
-            // Store selected customer data
+            // Set source account ID
+            $this->sourceAccountId = $account->id;
+            $this->selectedAccount = $account;
+
+            // Update account search display
+            $this->accountSearch = $account->account_number . ' - ' . $customer->full_name;
+
+            // Store selected customer data WITH ALL FIELDS
             $this->selectedCustomer = [
                 'id' => $customer->id,
                 'full_name' => $customer->full_name,
@@ -375,49 +467,102 @@ class TransactionCreate extends Component
                 'email' => $customer->email,
                 'phone' => $customer->phone,
                 'id_number' => $customer->id_number,
-                'profile_photo_url' => $customer->profile_photo_url ?? $this->getDefaultProfilePhoto($customer->full_name),
+                'profile_photo_url' => $customer->profile_photo_url,
+                'signature_url' => $customer->signature_image_url,
+                'signature_path' => $customer->signature_image_path,
                 'kyc_status' => $customer->kyc_status,
-                'accounts' => $customer->accounts->map(function ($account) {
+                'accounts' => $customer->accounts->map(function ($acc) {
                     return [
-                        'id' => $account->id,
-                        'account_number' => $account->account_number,
-                        'current_balance' => $account->current_balance,
-                        'available_balance' => $account->available_balance,
-                        'currency' => $account->currency,
-                        'status' => $account->status,
-                        'account_type' => $account->accountType ? [
-                            'name' => $account->accountType->name,
+                        'id' => $acc->id,
+                        'account_number' => $acc->account_number,
+                        'current_balance' => $acc->current_balance,
+                        'available_balance' => $acc->available_balance,
+                        'currency' => $acc->currency,
+                        'status' => $acc->status,
+                        'account_type' => $acc->accountType ? [
+                            'name' => $acc->accountType->name,
                         ] : null,
                     ];
                 })->toArray(),
             ];
 
+            // Debug: Log what we just set
+            Log::info('Selected customer data:', [
+                'customer_id' => $customer->id,
+                'signature_url' => $customer->signature_image_url,
+                'signature_path' => $customer->signature_image_path,
+                'selectedCustomer_signature_url' => $this->selectedCustomer['signature_url'] ?? null,
+                'selectedCustomer_signature_path' => $this->selectedCustomer['signature_path'] ?? null,
+            ]);
+
+            // Check if initial deposit has been done for this account
+            $this->hasInitialDeposit = $this->checkInitialDeposit($account->id);
+
             // Load customer accounts for selection
             $this->customerAccounts = $customer->accounts()
-                ->active()
+                ->where('status', 'active')
                 ->with(['accountType'])
                 ->get();
 
             // Load customer beneficiaries
             $this->beneficiaries = $customer->beneficiaries()
-                ->active()
-                ->verified()
+                ->where('is_active', true)
                 ->get();
 
             // Set customer contact info for receipts
             $this->customerEmail = $customer->email;
             $this->customerPhone = $customer->phone;
 
-            // Reset account selection and transaction initiator
-            $this->reset(['sourceAccountId', 'destinationAccountId', 'amount', 'transactionInitiator']);
+            // Reset other fields
+            $this->reset(['destinationAccountId', 'amount', 'transactionInitiator']);
             $this->updateAvailableBalance();
 
             // Close search results
             $this->closeSearchResults();
 
             // Dispatch event to focus on amount field
-            $this->dispatch('customer-selected');
+            $this->dispatch('account-selected');
         }
+    }
+
+    /**
+     * Check if signature file exists
+     */
+    public function checkSignatureFile($customerId)
+    {
+        if (!$customerId) {
+            return null;
+        }
+
+        $customer = Customer::find($customerId);
+        if (!$customer || !$customer->signature_image_path) {
+            return [
+                'exists' => false,
+                'message' => 'No signature path in database'
+            ];
+        }
+
+        $path = $customer->signature_image_path;
+        $publicPath = public_path('storage/' . $path);
+        $storagePath = storage_path('app/public/' . $path);
+
+        return [
+            'path' => $path,
+            'url' => $customer->signature_image_url,
+            'public_path' => $publicPath,
+            'public_exists' => file_exists($publicPath),
+            'storage_path' => $storagePath,
+            'storage_exists' => file_exists($storagePath),
+        ];
+    }
+
+    // Check if initial deposit has been done for an account
+    private function checkInitialDeposit($accountId)
+    {
+        return Transaction::where('destination_account_id', $accountId)
+            ->where('type', 'initial_deposit')
+            ->where('status', 'completed')
+            ->exists();
     }
 
     public function closeSearchResults()
@@ -426,19 +571,20 @@ class TransactionCreate extends Component
         $this->searchResults = [];
     }
 
-    public function clearCustomerSelection()
+    public function clearAccountSelection()
     {
         $this->reset([
             'customerId',
-            'customerSearch',
-            'customerAccounts',
+            'accountSearch',
             'sourceAccountId',
+            'customerAccounts',
             'destinationAccountId',
             'amount',
             'beneficiaries',
             'customerEmail',
             'customerPhone',
             'selectedCustomer',
+            'selectedAccount',
             'transactionInitiator',
             'thirdPartyName',
             'thirdPartyIdType',
@@ -446,7 +592,8 @@ class TransactionCreate extends Component
             'thirdPartyPhone',
             'thirdPartyRelationship',
             'thirdPartyAuthorization',
-            'authorizationDocument'
+            'authorizationDocument',
+            'hasInitialDeposit',
         ]);
         $this->closeSearchResults();
     }
@@ -467,41 +614,6 @@ class TransactionCreate extends Component
         }
     }
 
-    public function updatedCustomerId($value)
-    {
-        if ($value) {
-            $customer = Customer::with(['accounts.accountType'])->find($value);
-            if ($customer) {
-                $this->customerAccounts = $customer->accounts()
-                    ->active()
-                    ->with(['accountType'])
-                    ->get();
-
-                $this->customerEmail = $customer->email;
-                $this->customerPhone = $customer->phone;
-                $this->selectedCustomer = [
-                    'id' => $customer->id,
-                    'full_name' => $customer->full_name,
-                    'customer_number' => $customer->customer_number,
-                    'email' => $customer->email,
-                    'phone' => $customer->phone,
-                    'id_number' => $customer->id_number,
-                    'profile_photo_url' => $customer->profile_photo_url ?? $this->getDefaultProfilePhoto($customer->full_name),
-                    'kyc_status' => $customer->kyc_status,
-                ];
-
-                // Load customer beneficiaries
-                $this->beneficiaries = $customer->beneficiaries()
-                    ->active()
-                    ->verified()
-                    ->get();
-            }
-
-            $this->reset(['sourceAccountId', 'destinationAccountId', 'amount']);
-            $this->updateAvailableBalance();
-        }
-    }
-
     public function updatedSourceAccountId($value)
     {
         if ($value) {
@@ -511,6 +623,9 @@ class TransactionCreate extends Component
                 $this->availableBalance = $account->available_balance;
                 $this->currency = $account->currency;
 
+                // Check if initial deposit has been done
+                $this->hasInitialDeposit = $this->checkInitialDeposit($value);
+
                 // Load transaction limits
                 $this->loadTransactionLimits();
 
@@ -518,23 +633,6 @@ class TransactionCreate extends Component
                 $this->dispatch('account-selected');
             }
         }
-    }
-
-    private function initializeCashDenominations()
-    {
-        $this->cashDenominations = [
-            ['denomination' => 100, 'count' => 0],
-            ['denomination' => 50, 'count' => 0],
-            ['denomination' => 20, 'count' => 0],
-            ['denomination' => 10, 'count' => 0],
-            ['denomination' => 5, 'count' => 0],
-            ['denomination' => 1, 'count' => 0],
-            ['denomination' => 0.50, 'count' => 0],
-            ['denomination' => 0.25, 'count' => 0],
-            ['denomination' => 0.10, 'count' => 0],
-            ['denomination' => 0.05, 'count' => 0],
-            ['denomination' => 0.01, 'count' => 0],
-        ];
     }
 
     public function updatedTransactionType($value)
@@ -563,11 +661,35 @@ class TransactionCreate extends Component
             $this->showBeneficiarySection = false;
         }
 
+        // Reset transaction purpose for withdrawals
+        if ($value === 'withdrawal') {
+            $this->transactionPurpose = '';
+        }
+
         // Set default description based on type
         $this->updateDescription();
 
         // Clear validation errors
         $this->resetErrorBag();
+    }
+
+    private function initializeCashDenominations()
+    {
+        $this->cashDenominations = [
+            ['denomination' => 200, 'count' => 0],
+            ['denomination' => 100, 'count' => 0],
+            ['denomination' => 50, 'count' => 0],
+            ['denomination' => 20, 'count' => 0],
+            ['denomination' => 10, 'count' => 0],
+            ['denomination' => 5, 'count' => 0],
+            ['denomination' => 2, 'count' => 0],
+            ['denomination' => 1, 'count' => 0],
+            ['denomination' => 0.50, 'count' => 0],
+            ['denomination' => 0.20, 'count' => 0],
+            ['denomination' => 0.10, 'count' => 0],
+            ['denomination' => 0.05, 'count' => 0],
+            ['denomination' => 0.01, 'count' => 0],
+        ];
     }
 
     public function updatedAmount($value)
@@ -584,6 +706,22 @@ class TransactionCreate extends Component
             is_numeric($value) && $value > 0
         ) {
             $this->calculateCashDenominations($value);
+        }
+    }
+
+    // MANUAL DENOMINATION UPDATE - ALLOW TELLER TO ADJUST COUNTS
+    public function updateDenomination($index, $count)
+    {
+        if (isset($this->cashDenominations[$index])) {
+            $this->cashDenominations[$index]['count'] = max(0, (int) $count);
+
+            // Validate total matches amount
+            $total = $this->getTotalCashCount();
+            if (abs($total - (float) $this->amount) > 0.01) {
+                $this->addError('cashDenominations', 'Total cash amount must equal transaction amount');
+            } else {
+                $this->clearValidation('cashDenominations');
+            }
         }
     }
 
@@ -615,12 +753,14 @@ class TransactionCreate extends Component
     private function calculateCashDenominations($amount)
     {
         $remaining = $amount;
+        $denominations = [200, 100, 50, 20, 10, 5, 2, 1, 0.50, 0.20, 0.10, 0.05, 0.01];
 
         foreach ($this->cashDenominations as $key => $denomination) {
-            if ($remaining >= $denomination['denomination']) {
-                $count = floor($remaining / $denomination['denomination']);
+            $denomValue = $denomination['denomination'];
+            if ($remaining >= $denomValue - 0.001) { // Small epsilon for floating point
+                $count = floor($remaining / $denomValue);
                 $this->cashDenominations[$key]['count'] = $count;
-                $remaining = round($remaining - ($count * $denomination['denomination']), 2);
+                $remaining = round($remaining - ($count * $denomValue), 2);
             } else {
                 $this->cashDenominations[$key]['count'] = 0;
             }
@@ -667,6 +807,7 @@ class TransactionCreate extends Component
             'loan_payment' => 'Loan Payment',
             'fee_collection' => 'Fee Collection',
             'adjustment' => 'Balance Adjustment',
+            'initial_deposit' => 'Initial Deposit',
         ];
 
         $this->description = $descriptions[$this->transactionType] ?? 'Bank Transaction';
@@ -704,17 +845,17 @@ class TransactionCreate extends Component
         // Validate current step before moving forward
         if (!$this->validateCurrentStep()) {
             // Show error message if validation fails
-            $this->dispatch('showToast', [
-                'message' => 'Please fill in all required fields correctly.',
-                'type' => 'error'
-            ]);
-            return; // Don't proceed to next step
+            session()->flash('error', 'Please fill in all required fields correctly.');
+            return redirect()->route('transactions.index');
         }
 
         if ($this->step < $this->totalSteps) {
             $this->step++;
 
-            // If moving to step 4 (final review), auto-calculate cash denominations and show confirmation
+            // Auto supervisor approval when amount hits limit
+            $this->checkAutoSupervisorApproval();
+
+            // If moving to step 4 (final review)
             if ($this->step === 4) {
                 // Auto-calculate cash denominations for cash transactions
                 if (
@@ -730,10 +871,48 @@ class TransactionCreate extends Component
         }
     }
 
+    // AUTO SUPERVISOR APPROVAL WHEN AMOUNT HITS TRANSACTION LIMIT
+    private function checkAutoSupervisorApproval()
+    {
+        if (!$this->amount || !$this->sourceAccountId) {
+            return;
+        }
+
+        $amount = (float) $this->amount;
+
+        // Check if amount exceeds teller limit
+        $tellerLimit = 10000; // This should come from configuration or user settings
+
+        if ($amount >= $tellerLimit) {
+            $this->supervisorApproval = true;
+
+            // Auto-select a supervisor (e.g., first available supervisor from same branch)
+            if (!empty($this->supervisors)) {
+                if (is_array($this->supervisors) && isset($this->supervisors[0])) {
+                    // Handle as array
+                    $this->supervisorId = is_array($this->supervisors[0])
+                        ? ($this->supervisors[0]['id'] ?? null)
+                        : ($this->supervisors[0]->id ?? null);
+                } elseif (method_exists($this->supervisors, 'first') && $this->supervisors->first()) {
+                    // Handle as collection
+                    $this->supervisorId = $this->supervisors->first()->id;
+                }
+            }
+
+            session()->flash('info', 'Supervisor approval required for amounts above ' . number_format($tellerLimit, 2));
+            return redirect()->route('transactions.index');
+        }
+    }
+
     public function previousStep()
     {
         if ($this->step > 1) {
             $this->step--;
+
+            // If going back from step 4, hide confirmation
+            if ($this->step === 3) {
+                $this->showConfirmation = false;
+            }
 
             // If going back from step 3, hide beneficiary section if not applicable
             if ($this->step === 2 && !in_array($this->transactionType, ['transfer', 'bill_payment'])) {
@@ -747,16 +926,22 @@ class TransactionCreate extends Component
         try {
             switch ($this->step) {
                 case 1: // Customer and Transaction Details
-                    $this->validate([
+                    $rules = [
                         'customerId' => 'required|exists:customers,id',
-                        'transactionType' => 'required|in:transfer,withdrawal,deposit,cash_deposit,cheque_deposit,bill_payment,loan_payment,fee_collection,adjustment',
+                        'transactionType' => 'required|in:transfer,withdrawal,deposit,cash_deposit,cheque_deposit,bill_payment,loan_payment,fee_collection,adjustment,initial_deposit',
                         'sourceAccountId' => 'required|exists:accounts,id',
                         'amount' => 'required|numeric|min:0.01',
                         'description' => 'required|string|max:255',
-                        'transactionPurpose' => 'required|string',
-                    ]);
+                    ];
 
-                    // Validate source account has sufficient funds for debit transactions
+                    // Only validate purpose if NOT withdrawal or initial deposit
+                    if (!in_array($this->transactionType, ['withdrawal', 'initial_deposit'])) {
+                        $rules['transactionPurpose'] = 'required|string';
+                    }
+
+                    $this->validate($rules);
+
+                    // For debit transactions, check sufficient funds
                     if (in_array($this->transactionType, ['withdrawal', 'transfer', 'bill_payment', 'loan_payment', 'fee_collection'])) {
                         $account = Account::find($this->sourceAccountId);
                         if ($account && (float)$this->amount > $account->available_balance + $account->overdraft_limit) {
@@ -765,8 +950,20 @@ class TransactionCreate extends Component
                         }
                     }
 
+                    // Check if initial deposit is required for non-initial-deposit transactions
+                    if ($this->transactionType !== 'initial_deposit' && !$this->hasInitialDeposit) {
+                        $this->addError('transactionType', 'Initial deposit must be made before other transactions.');
+                        return false;
+                    }
+
+                    // For initial deposit, check that it hasn't been done already
+                    if ($this->transactionType === 'initial_deposit' && $this->hasInitialDeposit) {
+                        $this->addError('transactionType', 'Initial deposit has already been made for this account.');
+                        return false;
+                    }
+
                     // Additional validation for specific transaction types
-                    if ($this->transactionType === 'withdrawal' || $this->transactionType === 'cash_deposit') {
+                    if (in_array($this->transactionType, ['withdrawal', 'cash_deposit'])) {
                         $this->validate([
                             'cashHandlingMethod' => 'required|in:cash,cheque',
                             'cashReferenceNumber' => 'required_if:cashHandlingMethod,cash|string',
@@ -816,7 +1013,8 @@ class TransactionCreate extends Component
                     }
 
                     break;
-                    case 2: // Transaction Initiator (Self or Third Party)
+
+                case 2: // Transaction Initiator (Self or Third Party)
                     $this->validate([
                         'transactionInitiator' => 'required|in:self,third_party',
                     ]);
@@ -839,7 +1037,7 @@ class TransactionCreate extends Component
                     }
                     break;
 
-                case 3: // Verification and Receipt Options (now step 3)
+                case 3: // Verification and Receipt Options
                     $this->validate([
                         'customerVerificationMethod' => 'required|in:signature,id,biometric',
                         'customerSignature' => 'required|boolean',
@@ -853,7 +1051,7 @@ class TransactionCreate extends Component
                         ]);
                     }
 
-                    // IMPORTANT FIX: Validate supervisor ID if supervisor approval is checked
+                    // Validate supervisor ID if supervisor approval is checked
                     if ($this->supervisorApproval) {
                         $this->validate([
                             'supervisorId' => 'required|exists:users,id',
@@ -879,11 +1077,6 @@ class TransactionCreate extends Component
 
             return true;
         } catch (\Illuminate\Validation\ValidationException $e) {
-            // Get the first error message
-            $errors = $e->validator->errors()->all();
-            $firstError = !empty($errors) ? $errors[0] : 'Please fill in all required fields correctly.';
-
-            session()->flash('error', 'Error');
             return false;
         }
     }
@@ -901,6 +1094,90 @@ class TransactionCreate extends Component
         return number_format($total, 2);
     }
 
+    //     private function prepareTransactionPreview()
+    // {
+    //     $customer = Customer::find($this->customerId);
+    //     $sourceAccount = Account::find($this->sourceAccountId);
+    //     $destinationAccount = $this->destinationAccountId ? Account::find($this->destinationAccountId) : null;
+    //     $beneficiary = $this->beneficiaryId ? Beneficiary::find($this->beneficiaryId) : null;
+    //     $teller = \App\Models\Eloquent\User::find($this->tellerId);
+    //     $supervisor = $this->supervisorId ? \App\Models\Eloquent\User::find($this->supervisorId) : null;
+
+    //     // Get profile photo for customer only
+    //     $customerModel = Customer::find($this->customerId);
+    //     $customerName = $customerModel->full_name ?? 'Customer';
+    //     $profilePhoto = $customerModel->profile_photo_url ?? $this->getDefaultProfilePhoto($customerName);
+    //     $signature = $customerModel->signature_url ?? null;
+
+    //     // Calculate balance after transaction
+    //     $balanceAfter = $this->accountBalance;
+    //     if (in_array($this->transactionType, ['withdrawal', 'transfer', 'bill_payment', 'loan_payment', 'fee_collection'])) {
+    //         $balanceAfter -= (float) $this->amount;
+    //     } elseif (in_array($this->transactionType, ['deposit', 'cash_deposit', 'cheque_deposit', 'initial_deposit'])) {
+    //         $balanceAfter += (float) $this->amount;
+    //     }
+
+    //     $this->transactionPreview = [
+    //         'type' => $this->transactionType,
+    //         'type_display' => ucfirst(str_replace('_', ' ', $this->transactionType)),
+    //         'initiator_type' => $this->transactionInitiator,
+    //         'third_party_info' => $this->transactionInitiator === 'third_party' ? [
+    //             'name' => $this->thirdPartyName,
+    //             'id_type' => $this->thirdPartyIdType,
+    //             'id_number' => $this->thirdPartyIdNumber,
+    //             'phone' => $this->thirdPartyPhone,
+    //             'relationship' => $this->thirdPartyRelationship,
+    //             'authorization_document' => $this->authorizationDocument,
+    //         ] : null,
+    //         'customer' => $customer ? [
+    //             'name' => $customer->full_name,
+    //             'number' => $customer->customer_number,
+    //             'id' => $customer->id_number,
+    //             'profile_photo' => $profilePhoto, // Only customer has profile photo
+    //             'signature' => $signature,
+    //         ] : null,
+    //         'source_account' => $sourceAccount ? [
+    //             'number' => $sourceAccount->account_number,
+    //             'name' => $sourceAccount->accountType->name ?? 'N/A',
+    //             'balance_before' => number_format($this->accountBalance, 2),
+    //             'balance_after' => number_format($balanceAfter, 2),
+    //         ] : null,
+    //         'destination_account' => $destinationAccount ? [
+    //             'number' => $destinationAccount->account_number,
+    //             'name' => $destinationAccount->accountType->name ?? 'N/A',
+    //             'customer' => $destinationAccount->customer->full_name ?? 'N/A',
+    //         ] : null,
+    //         'beneficiary' => $beneficiary ? [
+    //             'name' => $beneficiary->full_name,
+    //             'account' => $beneficiary->account_number,
+    //             'bank' => $beneficiary->bank_name,
+    //         ] : null,
+    //         'amount' => number_format((float) $this->amount, 2),
+    //         'currency' => $this->currency,
+    //         'foreign_amount' => $this->foreignAmount ? number_format((float) $this->foreignAmount, 2) : null,
+    //         'description' => $this->description,
+    //         'purpose' => $this->transactionPurpose,
+    //         'teller' => $teller ? $teller->name : (Auth::user()->name ?? 'Teller'), // Just the name as string, not an array
+    //         'supervisor' => $supervisor ? $supervisor->name : null, // Just the name as string, not an array
+    //         'verification' => [
+    //             'method' => $this->customerVerificationMethod,
+    //             'signature' => $this->customerSignature,
+    //             'id_verified' => $this->idVerified,
+    //             'id_type' => $this->idType,
+    //             'id_number' => $this->idNumber,
+    //         ],
+    //         'receipt_options' => [
+    //             'print' => $this->printReceipt,
+    //             'email' => $this->emailReceipt,
+    //             'sms' => $this->smsReceipt,
+    //         ],
+    //         'cash_denominations' => $this->cashDenominations,
+    //         'metadata' => $this->prepareMetadata(),
+    //         'requires_supervisor' => $this->supervisorApproval,
+    //         'supervisor_auto_assigned' => $this->supervisorApproval && $this->amount >= 10000,
+    //     ];
+    // }
+
     private function prepareTransactionPreview()
     {
         $customer = Customer::find($this->customerId);
@@ -910,11 +1187,17 @@ class TransactionCreate extends Component
         $teller = \App\Models\Eloquent\User::find($this->tellerId);
         $supervisor = $this->supervisorId ? \App\Models\Eloquent\User::find($this->supervisorId) : null;
 
+        // Get profile photo and signature for customer
+        $customerModel = Customer::find($this->customerId);
+        $customerName = $customerModel->full_name ?? 'Customer';
+        $profilePhoto = $customerModel->profile_photo_url ?? $this->getDefaultProfilePhoto($customerName);
+        $signature = $customerModel->signature_image_url ?? null;
+
         // Calculate balance after transaction
         $balanceAfter = $this->accountBalance;
         if (in_array($this->transactionType, ['withdrawal', 'transfer', 'bill_payment', 'loan_payment', 'fee_collection'])) {
             $balanceAfter -= (float) $this->amount;
-        } elseif (in_array($this->transactionType, ['deposit', 'cash_deposit', 'cheque_deposit'])) {
+        } elseif (in_array($this->transactionType, ['deposit', 'cash_deposit', 'cheque_deposit', 'initial_deposit'])) {
             $balanceAfter += (float) $this->amount;
         }
 
@@ -934,17 +1217,19 @@ class TransactionCreate extends Component
                 'name' => $customer->full_name,
                 'number' => $customer->customer_number,
                 'id' => $customer->id_number,
+                'profile_photo' => $profilePhoto, // Profile photo URL
+                'signature' => $signature, // Signature image URL
             ] : null,
             'source_account' => $sourceAccount ? [
                 'number' => $sourceAccount->account_number,
-                'name' => $sourceAccount->accountType->name,
+                'name' => $sourceAccount->accountType->name ?? 'N/A',
                 'balance_before' => number_format($this->accountBalance, 2),
                 'balance_after' => number_format($balanceAfter, 2),
             ] : null,
             'destination_account' => $destinationAccount ? [
                 'number' => $destinationAccount->account_number,
-                'name' => $destinationAccount->accountType->name,
-                'customer' => $destinationAccount->customer->full_name,
+                'name' => $destinationAccount->accountType->name ?? 'N/A',
+                'customer' => $destinationAccount->customer->full_name ?? 'N/A',
             ] : null,
             'beneficiary' => $beneficiary ? [
                 'name' => $beneficiary->full_name,
@@ -956,7 +1241,7 @@ class TransactionCreate extends Component
             'foreign_amount' => $this->foreignAmount ? number_format((float) $this->foreignAmount, 2) : null,
             'description' => $this->description,
             'purpose' => $this->transactionPurpose,
-            'teller' => $teller ? $teller->name : null,
+            'teller' => $teller ? $teller->name : (Auth::user()->name ?? 'Teller'),
             'supervisor' => $supervisor ? $supervisor->name : null,
             'verification' => [
                 'method' => $this->customerVerificationMethod,
@@ -972,7 +1257,17 @@ class TransactionCreate extends Component
             ],
             'cash_denominations' => $this->cashDenominations,
             'metadata' => $this->prepareMetadata(),
+            'requires_supervisor' => $this->supervisorApproval,
+            'supervisor_auto_assigned' => $this->supervisorApproval && $this->amount >= 10000,
         ];
+    }
+
+    /* Get customer signature URL
+ */
+    public function getCustomerSignatureUrl($customerId)
+    {
+        $customer = Customer::find($customerId);
+        return $customer ? $customer->signature_image_url : null;
     }
 
     private function prepareMetadata()
@@ -989,6 +1284,7 @@ class TransactionCreate extends Component
             'customer_verified' => true,
             'verification_method' => $this->customerVerificationMethod,
             'initiator_type' => $this->transactionInitiator,
+            'has_initial_deposit' => $this->hasInitialDeposit,
         ];
 
         // Add third party information if applicable
@@ -1043,6 +1339,7 @@ class TransactionCreate extends Component
             $metadata['supervisor_approval'] = true;
             $metadata['supervisor_id'] = $this->supervisorId;
             $metadata['requires_supervisor_approval'] = true;
+            $metadata['supervisor_auto_assigned'] = $this->amount >= 10000;
         }
 
         // Add receipt options
@@ -1060,7 +1357,7 @@ class TransactionCreate extends Component
         // Verify supervisor password if required
         if ($this->supervisorApproval && $this->supervisorPassword) {
             $supervisor = \App\Models\Eloquent\User::find($this->supervisorId);
-            if (!$supervisor || !Hash::check($this->supervisorPassword, $supervisor->password)) {
+            if (!$supervisor || !\Illuminate\Support\Facades\Hash::check($this->supervisorPassword, $supervisor->password)) {
                 $this->addError('supervisorPassword', 'Invalid supervisor password');
                 return;
             }
@@ -1075,7 +1372,7 @@ class TransactionCreate extends Component
         $this->isProcessing = true;
 
         try {
-            $transactionService = app(TransactionService::class);
+            $transactionService = app(EnhancedTransactionService::class);
 
             // Get the source account
             $sourceAccount = Account::find($this->sourceAccountId);
@@ -1083,77 +1380,57 @@ class TransactionCreate extends Component
                 throw new \Exception('Source account not found');
             }
 
-            // Prepare common transaction data
-            $transactionData = [
-                'amount' => (float) $this->amount,
-                'currency' => $this->currency, 
-                'description' => $this->description,
-                'metadata' => $this->prepareMetadata(),
-                'initiated_by' => Auth::id(),
-                'teller_id' => $this->tellerId,
-                'customer_id' => $this->customerId,
-                'branch_id' => Auth::user()->branch_id,
-            ];
-
             // Process based on transaction type
             $transaction = null;
 
             switch ($this->transactionType) {
-                case 'transfer':
-                    if ($this->beneficiaryType === 'internal' && $this->destinationAccountId) {
-                        $transactionData['from_account_id'] = $this->sourceAccountId;
-                        $transactionData['to_account_id'] = $this->destinationAccountId;
-                        $transaction = $transactionService->transfer($transactionData);
-                    } elseif ($this->beneficiaryType === 'existing' && $this->beneficiaryId) {
-                        $beneficiary = Beneficiary::find($this->beneficiaryId);
-                        if ($beneficiary && $beneficiary->internal_account_id) {
-                            $transactionData['from_account_id'] = $this->sourceAccountId;
-                            $transactionData['to_account_id'] = $beneficiary->internal_account_id;
-                            $transaction = $transactionService->transfer($transactionData);
-                        } else {
-                            throw new \Exception('Beneficiary internal account not found');
-                        }
-                    } else {
-                        throw new \Exception('Please select a destination account or beneficiary');
-                    }
-                    break;
-
                 case 'withdrawal':
-                    $transactionData['account_id'] = $this->sourceAccountId;
-                    $transactionData['method'] = $this->cashHandlingMethod;
-                    $transactionData['external_reference'] = $this->cashReferenceNumber;
+                    $transactionData = [
+                        'account_id' => $this->sourceAccountId,
+                        'amount' => (float) $this->amount,
+                        'description' => $this->description,
+                        'metadata' => $this->prepareMetadata(),
+                    ];
                     $transaction = $transactionService->withdraw($transactionData);
                     break;
 
                 case 'cash_deposit':
-                    $transactionData['account_id'] = $this->sourceAccountId;
-                    $transactionData['method'] = 'cash';
-                    $transactionData['external_reference'] = $this->cashReferenceNumber;
+                case 'deposit':
+                    $transactionData = [
+                        'account_id' => $this->sourceAccountId,
+                        'amount' => (float) $this->amount,
+                        'description' => $this->description,
+                        'metadata' => $this->prepareMetadata(),
+                    ];
                     $transaction = $transactionService->cashDeposit($transactionData);
                     break;
 
-                case 'cheque_deposit':
-                    $transactionData['account_id'] = $this->sourceAccountId;
-                    $transactionData['method'] = 'cheque';
-                    $transactionData['external_reference'] = $this->chequeNumber;
-                    $transactionData['drawer_bank'] = $this->drawerBank;
-                    $transaction = $transactionService->deposit($transactionData);
+                case 'transfer':
+                    if (!$this->destinationAccountId) {
+                        throw new \Exception('Destination account is required for transfer');
+                    }
+                    $transactionData = [
+                        'from_account_id' => $this->sourceAccountId,
+                        'to_account_id' => $this->destinationAccountId,
+                        'amount' => (float) $this->amount,
+                        'description' => $this->description,
+                        'metadata' => $this->prepareMetadata(),
+                    ];
+                    $transaction = $transactionService->transfer($transactionData);
                     break;
 
-                case 'bill_payment':
-                    if ($this->beneficiaryType === 'internal' && $this->destinationAccountId) {
-                        $transactionData['from_account_id'] = $this->sourceAccountId;
-                        $transactionData['to_account_id'] = $this->destinationAccountId;
-                        $transactionData['metadata']['bill_type'] = $this->billType;
-                        $transactionData['metadata']['bill_account'] = $this->billAccountNumber;
-                        $transaction = $transactionService->transfer($transactionData);
-                    } else {
-                        throw new \Exception('Please select a destination account for bill payment');
-                    }
+                case 'initial_deposit':
+                    $transactionData = [
+                        'account_id' => $this->sourceAccountId,
+                        'amount' => (float) $this->amount,
+                        'description' => $this->description,
+                        'metadata' => $this->prepareMetadata(),
+                    ];
+                    $transaction = $transactionService->initialDeposit($transactionData);
                     break;
 
                 default:
-                    throw new \Exception("Transaction type '{$this->transactionType}' is not yet fully implemented");
+                    throw new \Exception("Transaction type '{$this->transactionType}' is not yet implemented");
             }
 
             if (!$transaction) {
@@ -1173,80 +1450,45 @@ class TransactionCreate extends Component
                 $this->sendSmsReceipt($transaction, $this->customerPhone);
             }
 
-            // Reset form
-            $this->resetForm();
-
-            session()->flash('success', 'Account created successfully.');
-            // Redirect to account details page
+            session()->flash('success', 'Transaction completed successfully.');
+            // Redirect to transaction details page
             return redirect()->route('transactions.show', $transaction->id);
-
         } catch (\Exception $e) {
-            $this->dispatch(
-                'showToast',
-                message: 'Transaction failed: ' . $e->getMessage(),
-                type: 'error'
-            );
+            session()->flash('error', 'Transaction failed: ' . $e->getMessage());
             Log::error('Transaction failed: ' . $e->getMessage(), [
                 'transaction_type' => $this->transactionType,
                 'source_account_id' => $this->sourceAccountId,
+                'destination_account_id' => $this->destinationAccountId,
                 'amount' => $this->amount,
                 'user_id' => Auth::id(),
                 'error_trace' => $e->getTraceAsString()
             ]);
+            return redirect()->route('transactions.index');
         } finally {
             $this->isProcessing = false;
         }
     }
 
-    private function createNewBeneficiary()
-    {
-        $customer = Customer::find($this->customerId);
-
-        $beneficiary = Beneficiary::create([
-            'tenant_id' => Auth::user()->tenant_id,
-            'customer_id' => $this->customerId,
-            'created_by' => Auth::id(),
-            'beneficiary_type' => 'domestic',
-            'entity_type' => 'individual',
-            'full_name' => $this->beneficiaryName,
-            'account_number' => $this->beneficiaryAccountNumber,
-            'account_name' => $this->beneficiaryName,
-            'bank_name' => $this->beneficiaryBankName,
-            'bank_code' => $this->beneficiaryBankCode,
-            'verification_status' => 'pending',
-            'is_active' => true,
-            'verified_by' => Auth::id(),
-            'verified_at' => now(),
-        ]);
-
-        return $beneficiary;
-    }
-
     private function printTransactionReceipt($transaction)
     {
-        // In real app, this would trigger a printer
-        // For now, just log it
         Log::info('Printing receipt for transaction: ' . $transaction->transaction_reference);
     }
 
     private function sendEmailReceipt($transaction, $email)
     {
-        // In real app, this would send an email
-        // For now, just log it
         Log::info('Emailing receipt to: ' . $email . ' for transaction: ' . $transaction->transaction_reference);
     }
 
     private function sendSmsReceipt($transaction, $phone)
     {
-        // In real app, this would send an SMS
-        // For now, just log it
         Log::info('SMS receipt to: ' . $phone . ' for transaction: ' . $transaction->transaction_reference);
     }
 
     public function cancelTransaction()
-    { 
+    {
         $this->showConfirmation = false;
         $this->transactionPreview = null;
+        $this->step = 3;
     }
 
     public function resetForm()
@@ -1307,8 +1549,10 @@ class TransactionCreate extends Component
             'isProcessing',
             'transactionPreview',
             'cashDenominations',
-            'customerSearch',
+            'accountSearch',
             'selectedCustomer',
+            'selectedAccount',
+            'hasInitialDeposit',
         ]);
 
         // Reload initial data
@@ -1320,6 +1564,8 @@ class TransactionCreate extends Component
         $this->exchangeRate = 1.0;
         $this->foreignAmount = 0;
         $this->transactionInitiator = 'self';
+        $this->step = 1;
+        $this->totalSteps = 4;
         $this->initializeCashDenominations();
     }
 
@@ -1334,11 +1580,21 @@ class TransactionCreate extends Component
         }
     }
 
-    public function getDefaultProfilePhoto(string $name): string
+    public function getDefaultProfilePhoto(?string $name): string
     {
+        if (empty($name)) {
+            $name = 'User';
+        }
+
         $initials = collect(explode(' ', $name))
             ->map(fn($word) => mb_substr($word, 0, 1))
+            ->filter()
             ->join('');
+
+        // If initials are empty, use a default
+        if (empty($initials)) {
+            $initials = 'U';
+        }
 
         return "https://ui-avatars.com/api/?name=" . urlencode($initials) . "&background=7F9CF5&color=FFFFFF&size=256";
     }

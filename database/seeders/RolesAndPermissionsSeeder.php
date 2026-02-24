@@ -125,9 +125,7 @@ class RolesAndPermissionsSeeder extends Seeder
                 'create transactions',
             ],
             'teller' => [
-                'user.view',
                 'view accounts',
-                'create accounts',
                 'view account balance',
                 'deposit funds',
                 'withdraw funds',
@@ -196,7 +194,7 @@ class RolesAndPermissionsSeeder extends Seeder
                 'deposit funds',
                 'freeze accounts',
             ],
-            'loan officer'=>[
+            'loan-officer' => [
                 'view customers',
                 'create loans',
                 'view loans',
@@ -283,6 +281,17 @@ class RolesAndPermissionsSeeder extends Seeder
                 'username' => 'joshua.doe',
                 'password' => 'Customer123!',
                 'role' => 'customer',
+                'branch_id' => 1,
+            ],
+            [
+                // 'id' => Uuid::uuid4()->toString(),
+                'id' => 5,
+                'email' => 'loan-officer@metco.com',
+                'first_name' => 'Ama',
+                'last_name' => 'Asante',
+                'username' => 'ama.asante',
+                'password' => 'mick2018',
+                'role' => 'loan-officer',
                 'branch_id' => 1,
             ],
         ];

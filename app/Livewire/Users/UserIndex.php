@@ -46,7 +46,7 @@ class UserIndex extends Component
             abort(403, 'Unauthorized access.');
         }
 
-        if (!$user->isAdmin()) {
+        if (!$user->isAdmin() && !$user->isManager()) {
             abort(403, 'Admin access required.');
         }
 
@@ -71,7 +71,7 @@ class UserIndex extends Component
     public function updatingRole()
     {
         $this->resetPage();
-    }
+    } 
 
     public function updatingStatus()
     {
@@ -267,9 +267,9 @@ class UserIndex extends Component
 
         return view('livewire.users.user-index', [
             'users' => $this->users,
-            'canCreate' => $user->isAdmin(),
-            'canEdit' => $user->isAdmin(),
-            'canDelete' => $user->isAdmin(),
+            'canCreate' => $user->isAdmin()||$user->isManager(),
+            'canEdit' => $user->isAdmin()||$user->isManager(),
+            'canDelete' => $user->isAdmin()||$user->isManager(),
             'hasActiveFilters' => $this->hasActiveFilters,
             'activeFiltersCount' => $this->activeFiltersCount,
         ]);

@@ -2,17 +2,19 @@
 
 namespace App\Livewire\Transactions;
 
-use Livewire\Component;
-use Livewire\WithPagination;
-use Livewire\Attributes\Layout;
-use App\Models\Eloquent\Account;
 use App\Exports\TransactionsExport;
-use Illuminate\Support\Facades\Log;
+use App\Models\Eloquent\Account;
+use App\Models\Eloquent\SystemAccount;
 use App\Models\Eloquent\Transaction;
+use App\Services\Transaction\TransactionService;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Gate;
+use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Schema;
+use Livewire\Attributes\Layout;
+use Livewire\Component;
+use Livewire\WithPagination;
 use Maatwebsite\Excel\Facades\Excel;
-use App\Services\Transaction\TransactionService;
 
 class TransactionIndex extends Component
 {
@@ -33,13 +35,16 @@ class TransactionIndex extends Component
     public $reverseReason = '';
 
     public $accounts = [];
+    public $systemAccounts = []; // Add system accounts
     public $transactionTypes = [
         'transfer' => 'Transfer',
         'withdrawal' => 'Withdrawal',
         'deposit' => 'Deposit',
         'reversal' => 'Reversal',
+        'teller_topup' => 'Teller Topup',
+        'initial_deposit' => 'Initial Deposit',
     ];
-
+ 
     public $statuses = [
         'pending' => 'Pending',
         'completed' => 'Completed',
@@ -58,22 +63,31 @@ class TransactionIndex extends Component
         'showFilters' => ['except' => false],
     ];
 
-    // Add the loadAccounts method
+    /**
+     * Load accounts based on user role
+     */
     private function loadAccounts()
     {
         $user = Auth::user();
         if (! $user instanceof \App\Models\Eloquent\User) {
-            return;
-        }
-
-        if (!$user) {
             $this->accounts = [];
+            $this->systemAccounts = [];
             return;
         }
 
-        if (Gate::allows('create transactions')) {
+        // Load regular accounts
+        if ($user->hasRole('super-admin') || $user->hasRole('manager')) {
             // Admins can see all active accounts
             $this->accounts = Account::with(['accountType', 'customer'])
+                ->active()
+                ->orderBy('account_number')
+                ->get();
+        } elseif ($user->isManager() || $user->isTeller()) {
+            // Managers and tellers can see accounts in their branch
+            $this->accounts = Account::with(['accountType', 'customer'])
+                ->whereHas('customer', function ($query) use ($user) {
+                    $query->where('branch_id', $user->branch_id);
+                })
                 ->active()
                 ->orderBy('account_number')
                 ->get();
@@ -85,10 +99,39 @@ class TransactionIndex extends Component
                 ->orderBy('account_number')
                 ->get();
         }
+
+        // Load system accounts for filtering (if needed)
+        if ($user->hasRole('super-admin') || $user->hasRole('manager')) {
+            // FIXED: Removed the non-existent 'systemAccountType' relationship
+            // Just load the system accounts without any relationship
+            $this->systemAccounts = SystemAccount::where('is_active', true)
+                ->orderBy('code')
+                ->get();
+                
+            // If you need to load a relationship, check what's actually available
+            // For example, if there's a 'type' relationship, you could use:
+            // $this->systemAccounts = SystemAccount::with('type')
+            //     ->where('is_active', true)
+            //     ->orderBy('code')
+            //     ->get();
+        }
     }
 
     public function mount()
     {
+        $user = Auth::user();
+        if ($user instanceof \App\Models\Eloquent\User) {
+            Log::info('User in mount:', [
+                'id' => $user->id,
+                'role' => $user->role,
+                'isTeller' => $user->isTeller(),
+                'isManager' => $user->isManager(),
+                'branch_id' => $user->branch_id,
+                'hasRole_super-admin' => $user->hasRole('super-admin'),
+                'hasRole_admin' => $user->hasRole('admin')
+            ]);
+        }
+
         $this->loadAccounts();
 
         // Check for active filters
@@ -97,18 +140,14 @@ class TransactionIndex extends Component
         }
     }
 
-    private function showToast($message, $type = 'success')
-    {
-        $this->dispatch('showToast', message: $message, type: $type);
-    }
-    
-    // Add export functionality
+    /**
+     * Export transactions
+     */
     public function exportTransactions()
     {
         try {
             // Check permission
             if (!Gate::allows('export transaction reports')) {
-
                 session()->flash('error', 'You are not authorized to export transactions.');
                 return redirect()->route('transactions.index');
             }
@@ -135,7 +174,7 @@ class TransactionIndex extends Component
                 'trace' => $e->getTraceAsString()
             ]);
 
-            session()->flash('error', 'Failed to export.'.$e->getMessage());
+            session()->flash('error', 'Failed to export. ' . $e->getMessage());
             return redirect()->route('transactions.index');
         }
     }
@@ -160,16 +199,13 @@ class TransactionIndex extends Component
             'destinationAccount.customer'
         ]);
 
-        // Filter by user's accounts (for non-admin users)
-        if (!$user->hasRole('super-admin')) {
-            $userAccountIds = Account::where('customer_id', Auth::user()->customer_id)
-                ->pluck('id')
-                ->toArray();
-
-            $query->whereHas('ledgerEntries', function ($q) use ($userAccountIds) {
-                $q->whereIn('account_id', $userAccountIds);
-            });
+        // Only try to load systemLedgerEntries if the relationship exists
+        if (method_exists(Transaction::class, 'systemLedgerEntries')) {
+            $query->with('systemLedgerEntries.systemAccount');
         }
+
+        // Apply role-based filtering
+        $this->applyRoleBasedFiltering($query, $user);
 
         // Apply filters
         if ($this->account_id) {
@@ -215,35 +251,41 @@ class TransactionIndex extends Component
         if ($this->search) $filters['search'] = $this->search;
         if ($this->account_id) $filters['account'] = $this->account_id;
         if ($this->status) $filters['status'] = $this->status;
-        if ($this->type) $filters['account'] = $this->type;
+        if ($this->type) $filters['type'] = $this->type;
+        if ($this->start_date) $filters['start_date'] = $this->start_date;
         if ($this->end_date) $filters['end_date'] = $this->end_date;
 
         return $filters;
     }
 
-    // Add these methods for reverse functionality
+    /**
+     * Confirm transaction reversal
+     */
     public function confirmReverse($transactionId)
     {
-        $this->transactionToReverse = Transaction::with(['ledgerEntries.account'])
-            ->findOrFail($transactionId);
+        $query = Transaction::with(['ledgerEntries.account']);
+
+        // Only load systemLedgerEntries if the relationship exists
+        if (method_exists(Transaction::class, 'systemLedgerEntries')) {
+            $query->with('systemLedgerEntries.systemAccount');
+        }
+
+        $this->transactionToReverse = $query->findOrFail($transactionId);
 
         // Check if transaction can be reversed
         if (!$this->transactionToReverse->isCompleted()) {
- 
-            session()->flash('error', 'Only completed transactions can be reserved.');
+            session()->flash('error', 'Only completed transactions can be reversed.');
             return redirect()->route('transactions.index');
         }
 
         if ($this->transactionToReverse->isReversed()) {
-
             session()->flash('error', 'Transaction already reversed');
             return redirect()->route('transactions.index');
         }
 
         // Check permissions (only admin can reverse)
         if (!Gate::allows('reverse transactions')) {
-
-            session()->flash('error', 'Unauthorized to reserve transactions');
+            session()->flash('error', 'Unauthorized to reverse transactions');
             return redirect()->route('transactions.index');
         }
 
@@ -273,19 +315,30 @@ class TransactionIndex extends Component
             // Close modal and reset
             $this->closeReverseModal();
             return redirect()->route('transactions.index');
-
         } catch (\Exception $e) {
-
-            session()->flash('error', 'Failed to reverse transaction'.$e->getMessage());
+            session()->flash('error', 'Failed to reverse transaction: ' . $e->getMessage());
             return redirect()->route('transactions.index');
         }
     }
 
-    // view transaction method
+    /**
+     * View transaction details
+     */
     public function viewTransaction($transactionId)
     {
-        $transaction = Transaction::with(['ledgerEntries.account', 'initiator', 'sourceAccount', 'destinationAccount'])
-            ->findOrFail($transactionId);
+        $query = Transaction::with([
+            'ledgerEntries.account',
+            'initiator',
+            'sourceAccount',
+            'destinationAccount'
+        ]);
+
+        // Only load systemLedgerEntries if the relationship exists
+        if (method_exists(Transaction::class, 'systemLedgerEntries')) {
+            $query->with('systemLedgerEntries.systemAccount');
+        }
+
+        $transaction = $query->findOrFail($transactionId);
 
         // Check permissions
         $user = Auth::user();
@@ -301,7 +354,6 @@ class TransactionIndex extends Component
             $transactionAccountIds = $transaction->ledgerEntries->pluck('account_id')->toArray();
 
             if (!array_intersect($userAccountIds, $transactionAccountIds)) {
-
                 session()->flash('error', 'Unauthorized to view this transaction');
                 return redirect()->route('transactions.index');
             }
@@ -384,23 +436,111 @@ class TransactionIndex extends Component
         );
     }
 
+    /**
+     * Apply role-based filtering to the query
+     */
+    private function applyRoleBasedFiltering($query, $user)
+    {
+        // Super-admin and admin can see all transactions
+        if ($user->hasRole('super-admin') || $user->hasRole('admin')) {
+            Log::info('Admin user - no filtering applied');
+            return;
+        }
+
+        // For managers: show ALL transactions from their branch
+        if ($user->isManager()) {
+            Log::info('Manager filtering - branch_id: ' . $user->branch_id);
+
+            $query->where(function ($q) use ($user) {
+                // Transactions initiated by ANY user in the manager's branch
+                $q->whereHas('initiator', function ($subQ) use ($user) {
+                    $subQ->where('branch_id', $user->branch_id);
+                })
+                    // Or transactions completed by ANY user in the manager's branch
+                    ->orWhereHas('completer', function ($subQ) use ($user) {
+                        $subQ->where('branch_id', $user->branch_id);
+                    })
+                    // Or transactions involving ANY customer accounts from the manager's branch
+                    ->orWhereHas('ledgerEntries.account.customer', function ($subQ) use ($user) {
+                        $subQ->where('branch_id', $user->branch_id);
+                    });
+
+                // Only add systemLedgerEntries filtering if the relationship exists
+                if (method_exists(Transaction::class, 'systemLedgerEntries')) {
+                    $q->orWhereHas('systemLedgerEntries', function ($subQ) use ($user) {
+                        $subQ->whereHas('systemAccount', function ($systemQ) use ($user) {
+                            // Check if branch_id exists on system_accounts table
+                            if (Schema::hasColumn('system_accounts', 'branch_id')) {
+                                $systemQ->where('branch_id', $user->branch_id);
+                            }
+                        });
+                    });
+                }
+            });
+            return;
+        }
+
+        // For tellers: show ONLY their own transactions
+        if ($user->isTeller()) {
+            Log::info('Teller filtering - user_id: ' . $user->id . ', branch_id: ' . $user->branch_id);
+
+            $query->where(function ($q) use ($user) {
+                // ONLY transactions initiated by this specific teller
+                $q->where('initiated_by', $user->id)
+                    // OR transactions completed by this specific teller
+                    ->orWhere('completed_by', $user->id);
+            });
+            return;
+        }
+
+        // For regular users (customers): only show their own transactions
+        Log::info('Customer filtering - customer_id: ' . $user->customer_id);
+
+        $userAccountIds = Account::where('customer_id', $user->customer_id)
+            ->pluck('id')
+            ->toArray();
+
+        $query->whereHas('ledgerEntries', function ($q) use ($userAccountIds) {
+            $q->whereIn('account_id', $userAccountIds);
+        });
+    }
+
     public function getTransactionsProperty()
     {
         $user = Auth::user();
         if (! $user instanceof \App\Models\Eloquent\User) {
-            return;
+            return null;
         }
-        $query = Transaction::with(['ledgerEntries.account', 'initiator']);
 
-        // Filter by user's accounts (for non-admin users)
-        if (!$user->hasRole('super-admin')) {
-            $userAccountIds = Account::where('customer_id', Auth::user()->customer_id)
-                ->pluck('id')
-                ->toArray();
+        // Debug: Log user information
+        Log::info('User accessing transactions:', [
+            'user_id' => $user->id,
+            'user_role' => $user->role,
+            'is_teller' => $user->isTeller(),
+            'is_manager' => $user->isManager(),
+            'branch_id' => $user->branch_id,
+            'customer_id' => $user->customer_id
+        ]);
 
-            $query->whereHas('ledgerEntries', function ($q) use ($userAccountIds) {
-                $q->whereIn('account_id', $userAccountIds);
-            });
+        $query = Transaction::with([
+            'ledgerEntries.account',
+            'initiator',
+            'completer'
+        ]);
+
+        // Only load systemLedgerEntries if the relationship exists
+        if (method_exists(Transaction::class, 'systemLedgerEntries')) {
+            $query->with('systemLedgerEntries.systemAccount');
+        }
+
+        // Apply role-based filtering
+        $this->applyRoleBasedFiltering($query, $user);
+
+        // Debug: Log the SQL query for tellers
+        if ($user->isTeller()) {
+            $sql = $query->toSql();
+            $bindings = $query->getBindings();
+            Log::info('Teller query:', ['sql' => $sql, 'bindings' => $bindings]);
         }
 
         // Apply filters
@@ -434,7 +574,14 @@ class TransactionIndex extends Component
             $query->where('initiated_at', '<=', $this->end_date . ' 23:59:59');
         }
 
-        return $query->orderBy('initiated_at', 'desc')->paginate($this->perPage);
+        $results = $query->orderBy('initiated_at', 'desc')->paginate($this->perPage);
+
+        // Debug: Log the count for tellers
+        if ($user->isTeller()) {
+            Log::info('Teller results count:', ['count' => $results->total()]);
+        }
+
+        return $results;
     }
 
     public function getHasActiveFiltersProperty()
@@ -458,20 +605,18 @@ class TransactionIndex extends Component
     {
         $user = Auth::user();
         if (! $user instanceof \App\Models\Eloquent\User) {
-            return;
+            return [
+                'total' => 0,
+                'completed' => 0,
+                'pending' => 0,
+                'failed' => 0,
+            ];
         }
 
-        if (Gate::allows('view transactions')) {
-            $query = Transaction::query();
-        } else {
-            $userAccountIds = Account::where('customer_id', $user->customer_id)
-                ->pluck('id')
-                ->toArray();
+        $query = Transaction::query();
 
-            $query = Transaction::whereHas('ledgerEntries', function ($q) use ($userAccountIds) {
-                $q->whereIn('account_id', $userAccountIds);
-            });
-        }
+        // Apply role-based filtering
+        $this->applyRoleBasedFiltering($query, $user);
 
         // Apply the same filters as the main query
         if ($this->account_id) {
@@ -488,6 +633,14 @@ class TransactionIndex extends Component
             $query->where('status', $this->status);
         }
 
+        if ($this->search) {
+            $query->where(function ($q) {
+                $q->where('transaction_reference', 'like', '%' . $this->search . '%')
+                    ->orWhere('description', 'like', '%' . $this->search . '%')
+                    ->orWhere('notes', 'like', '%' . $this->search . '%');
+            });
+        }
+
         if ($this->start_date) {
             $query->where('initiated_at', '>=', $this->start_date);
         }
@@ -498,9 +651,9 @@ class TransactionIndex extends Component
 
         return [
             'total' => $query->count(),
-            'completed' => $query->clone()->where('status', 'completed')->count(),
-            'pending' => $query->clone()->where('status', 'pending')->count(),
-            'failed' => $query->clone()->where('status', 'failed')->count(),
+            'completed' => (clone $query)->where('status', 'completed')->count(),
+            'pending' => (clone $query)->where('status', 'pending')->count(),
+            'failed' => (clone $query)->where('status', 'failed')->count(),
         ];
     }
 
@@ -521,4 +674,3 @@ class TransactionIndex extends Component
         ]);
     }
 }
- 

@@ -16,6 +16,7 @@ use App\Livewire\Loans\LoanIndex;
 use App\Livewire\Loans\LoanReview;
 use App\Livewire\Loans\LoanShow;
 use App\Livewire\Teller\TellerDashboard;
+use App\Livewire\Teller\TellerIndex;
 use App\Livewire\Transactions\TransactionCreate;
 use App\Livewire\Transactions\TransactionIndex;
 use App\Livewire\Transactions\ViewTransaction;
@@ -97,6 +98,11 @@ Route::middleware('auth')->group(function () {
         Route::get('/create', LoanApplication::class)->name('create');
         Route::get('/{loan}', LoanShow::class)->name('show');
         Route::get('/{loan}/review', LoanReview::class)->name('review');
+    });
+
+    //Tellers routes
+    Route::prefix('tellers')->name('tellers.')->group(function () {
+        Route::get('/', TellerIndex::class)->name('index');
     });
 });
 

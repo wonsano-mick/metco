@@ -15,7 +15,7 @@
                             <i class="fas fa-filter mr-2"></i>
                             Filters
                             @if ($hasActiveFilters)
-                                <span
+                                <span 
                                     class="ml-2 inline-flex items-center justify-center h-5 w-5 rounded-full bg-blue-100 text-blue-800 text-xs font-semibold">
                                     {{ $activeFiltersCount }}
                                 </span>

@@ -50,7 +50,7 @@
                                         <h3 class="text-lg font-semibold text-blue-900">
                                             @switch($step)
                                                 @case(1)
-                                                    Step 1: Select Customer & Transaction Details
+                                                    Step 1: Select Account & Transaction Details
                                                 @break
 
                                                 @case(2)
@@ -59,18 +59,18 @@
                                                 @break
 
                                                 @case(3)
-                                                    Step 3: Receipt & Confirmation
+                                                    Step 3: Verification & Receipt Options
                                                 @break
 
                                                 @case(4)
-                                                    Step 4: Final Review
+                                                    Step 4: Final Review & Confirmation
                                                 @break
                                             @endswitch
                                         </h3>
                                         <p class="text-sm text-blue-700">
                                             @switch($step)
                                                 @case(1)
-                                                    Select a customer and provide transaction details
+                                                    Select an account and provide transaction details
                                                 @break
 
                                                 @case(2)
@@ -78,7 +78,7 @@
                                                 @break
 
                                                 @case(3)
-                                                    Set receipt options and finalize details
+                                                    Verify customer identity and set receipt options
                                                 @break
 
                                                 @case(4)
@@ -437,31 +437,31 @@
                         <!-- Step 1: Customer and Transaction Selection -->
                         @if ($step === 1)
                             <div class="space-y-6">
-                                <!-- Customer Selection -->
+                                <!-- Account Selection by Account Number -->
                                 <div class="bg-blue-50 border border-blue-100 rounded-lg p-4">
                                     <h3 class="text-lg font-semibold text-blue-900 mb-4 flex items-center">
                                         <i class="fas fa-user mr-2"></i>
-                                        1. Select Customer
+                                        1. Select Account
                                     </h3>
                                     <div>
-                                        <label for="customerSearch" class="block text-sm font-medium text-gray-700">
-                                            Search Customer <span class="text-red-500">*</span>
-                                            <span class="text-xs text-gray-500 ml-2">Search by name, customer number,
-                                                phone, email, or ID</span>
+                                        <label for="accountSearch" class="block text-sm font-medium text-gray-700">
+                                            Search by Account Number <span class="text-red-500">*</span>
+                                            <span class="text-xs text-gray-500 ml-2">Enter account number to
+                                                search</span>
                                         </label>
 
                                         <!-- Search Input with Loading Indicator -->
                                         <div class="mt-1 relative">
                                             <div class="flex">
-                                                <input type="text" wire:model.live.debounce.300ms="customerSearch"
-                                                    wire:keydown.escape="clearCustomerSelection" id="customerSearch"
+                                                <input type="text" wire:model.live.debounce.300ms="accountSearch"
+                                                    wire:keydown.escape="clearAccountSelection" id="accountSearch"
                                                     class="flex-1 block w-full pl-10 pr-10 py-3 text-base border-gray-300 rounded-l-md focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
-                                                    placeholder="Start typing to search customers..."
+                                                    placeholder="Enter account number (e.g., 1234567890)"
                                                     autocomplete="off"
-                                                    @if ($customerId) disabled @endif>
+                                                    @if ($sourceAccountId) disabled @endif>
 
-                                                @if ($customerId)
-                                                    <button type="button" wire:click="clearCustomerSelection"
+                                                @if ($sourceAccountId)
+                                                    <button type="button" wire:click="clearAccountSelection"
                                                         class="inline-flex items-center px-4 py-3 border border-l-0 border-gray-300 bg-red-50 text-red-700 rounded-r-md hover:bg-red-100 focus:outline-none focus:ring-2 focus:ring-red-500">
                                                         <i class="fas fa-times mr-2"></i>
                                                         Clear
@@ -486,8 +486,8 @@
                                             </div>
 
                                             <!-- Clear Search Button (when typing) -->
-                                            @if ($customerSearch && !$customerId)
-                                                <button type="button" wire:click="$set('customerSearch', '')"
+                                            @if ($accountSearch && !$sourceAccountId)
+                                                <button type="button" wire:click="$set('accountSearch', '')"
                                                     class="absolute inset-y-0 right-12 pr-3 flex items-center text-gray-400 hover:text-gray-600">
                                                     <i class="fas fa-times"></i>
                                                 </button>
@@ -499,282 +499,157 @@
                                         </div>
 
                                         <!-- Search Results Dropdown -->
-                                        @if ($showSearchResults && !$customerId)
+                                        @if ($showSearchResults && !$sourceAccountId)
                                             <div
                                                 class="mt-1 absolute z-50 w-100 bg-white shadow-lg max-h-96 overflow-y-auto rounded-lg border border-gray-300 search-results-container">
                                                 <ul class="divide-y divide-gray-200">
-                                                    @forelse($searchResults as $customer)
-                                                        <li wire:key="customer-{{ $customer->id }}">
+                                                    @forelse($searchResults as $account)
+                                                        <li wire:key="account-{{ $account->id }}">
                                                             <button type="button"
-                                                                wire:click="selectCustomer({{ $customer->id }})"
-                                                                class="w-full text-left px-4 py-3 focus:outline-none focus:bg-blue-50">
+                                                                wire:click="selectAccount({{ $account->id }})"
+                                                                class="w-full text-left px-4 py-3 focus:outline-none focus:bg-blue-50 hover:bg-blue-50">
                                                                 <div class="flex items-center">
                                                                     <div class="flex-shrink-0">
-                                                                        @if ($customer->profile_photo_url)
-                                                                            <img class="h-10 w-10 rounded-full"
-                                                                                src="{{ $customer->profile_photo_url }}"
-                                                                                alt="{{ $customer->full_name }}">
-                                                                        @else
-                                                                            <div
-                                                                                class="h-10 w-10 rounded-full bg-blue-100 flex items-center justify-center">
-                                                                                <span
-                                                                                    class="text-blue-600 font-medium">
-                                                                                    {{ substr($customer->first_name, 0, 1) }}{{ substr($customer->last_name, 0, 1) }}
-                                                                                </span>
-                                                                            </div>
-                                                                        @endif
+                                                                        <div
+                                                                            class="h-10 w-10 rounded-full bg-blue-100 flex items-center justify-center">
+                                                                            <i class="fas fa-wallet text-blue-600"></i>
+                                                                        </div>
                                                                     </div>
                                                                     <div class="ml-4 flex-1">
                                                                         <div class="flex justify-between items-start">
                                                                             <div>
                                                                                 <div
                                                                                     class="text-sm font-medium text-gray-900">
-                                                                                    {{ $customer->full_name }}</div>
-                                                                                <div class="text-sm text-gray-500">
-                                                                                    #{{ $customer->customer_number }}
-                                                                                    @if ($customer->id_number)
-                                                                                        • ID:
-                                                                                        {{ $customer->id_number }}
-                                                                                    @endif
+                                                                                    {{ $account->account_number }}
+                                                                                </div>
+                                                                                <div class="text-sm text-gray-600">
+                                                                                    {{ $account->customer->full_name ?? 'N/A' }}
                                                                                 </div>
                                                                                 <div
-                                                                                    class="text-xs text-gray-400 mt-1">
-                                                                                    {{ $customer->email }} |
-                                                                                    {{ $customer->phone }}
+                                                                                    class="text-xs text-gray-500 mt-1">
+                                                                                    Type:
+                                                                                    {{ $account->accountType->name ?? 'N/A' }}
+                                                                                    |
+                                                                                    Balance:
+                                                                                    {{ number_format($account->current_balance, 2) }}
+                                                                                    {{ $account->currency }}
                                                                                 </div>
                                                                             </div>
-                                                                            <div class="text-right">
-                                                                                <span
-                                                                                    class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-green-100 text-green-800">
-                                                                                    <i class="fas fa-wallet mr-1"></i>
-                                                                                    {{ $customer->accounts->count() }}
-                                                                                    account(s)
-                                                                                </span>
-                                                                            </div>
+                                                                            <span
+                                                                                class="inline-flex items-center px-2 py-1 rounded text-xs font-medium bg-green-100 text-green-800">
+                                                                                <i
+                                                                                    class="fas fa-check-circle mr-1"></i>
+                                                                                Select
+                                                                            </span>
                                                                         </div>
-                                                                        @if ($customer->accounts->count() > 0)
-                                                                            <div
-                                                                                class="mt-2 pt-2 border-t border-gray-100">
-                                                                                <div
-                                                                                    class="text-xs text-gray-600 font-medium mb-1">
-                                                                                    Accounts:</div>
-                                                                                <div class="flex flex-wrap gap-1">
-                                                                                    @foreach ($customer->accounts->take(3) as $account)
-                                                                                        <span
-                                                                                            class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-blue-100 text-blue-800">
-                                                                                            {{ $account->account_number }}
-                                                                                            ({{ $account->accountType->name ?? 'N/A' }})
-                                                                                        </span>
-                                                                                    @endforeach
-                                                                                    @if ($customer->accounts->count() > 3)
-                                                                                        <span
-                                                                                            class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-gray-100 text-gray-800">
-                                                                                            +{{ $customer->accounts->count() - 3 }}
-                                                                                            more
-                                                                                        </span>
-                                                                                    @endif
-                                                                                </div>
-                                                                            </div>
-                                                                        @endif
                                                                     </div>
                                                                 </div>
                                                             </button>
                                                         </li>
                                                     @empty
                                                         <li class="px-4 py-3 text-sm text-gray-500 text-center">
-                                                            <i class="fas fa-user-slash mr-2"></i>
-                                                            No customers found matching "{{ $customerSearch }}"
+                                                            <i class="fas fa-search mr-2"></i>
+                                                            No accounts found matching "{{ $accountSearch }}"
                                                         </li>
                                                     @endforelse
                                                 </ul>
                                             </div>
                                         @endif
 
-                                        <!-- Selected Customer Display -->
-                                        @if ($selectedCustomer)
+                                        <!-- Selected Account Display -->
+                                        @if ($selectedAccount)
                                             <div
                                                 class="mt-3 bg-white rounded-md border border-green-200 p-4 shadow-sm relative">
                                                 <div class="flex items-start justify-between">
                                                     <div class="flex items-center">
                                                         <div class="flex-shrink-0">
-                                                            @if ($selectedCustomer['profile_photo_url'])
-                                                                <img class="h-12 w-12 rounded-full"
-                                                                    src="{{ $selectedCustomer['profile_photo_url'] }}"
-                                                                    alt="">
-                                                            @else
-                                                                <div
-                                                                    class="h-12 w-12 rounded-full bg-blue-100 flex items-center justify-center">
-                                                                    <span class="text-blue-600 font-medium text-lg">
-                                                                        {{ substr($selectedCustomer['full_name'], 0, 1) }}{{ substr($selectedCustomer['full_name'], 0, 1) }}
-                                                                    </span>
-                                                                </div>
-                                                            @endif
+                                                            <div
+                                                                class="h-12 w-12 rounded-full bg-blue-100 flex items-center justify-center">
+                                                                <i class="fas fa-wallet text-blue-600 text-xl"></i>
+                                                            </div>
                                                         </div>
                                                         <div class="ml-4">
                                                             <div class="flex items-center">
                                                                 <div class="text-lg font-medium text-gray-900">
-                                                                    {{ $selectedCustomer['full_name'] }}</div>
+                                                                    Account: {{ $selectedAccount->account_number }}
+                                                                </div>
                                                                 <span
                                                                     class="ml-2 inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
                                                                     <i class="fas fa-shield-alt mr-1"></i>
-                                                                    KYC Verified
+                                                                    Active
                                                                 </span>
                                                             </div>
                                                             <div class="text-sm text-gray-600 mt-1">
-                                                                Customer #{{ $selectedCustomer['customer_number'] }}
-                                                                @if ($selectedCustomer['id_number'])
+                                                                Customer: {{ $selectedCustomer['full_name'] ?? 'N/A' }}
+                                                            </div>
+                                                            <div class="text-xs text-gray-400 mt-1">
+                                                                <i class="fas fa-id-card mr-1"></i>Customer
+                                                                #{{ $selectedCustomer['customer_number'] ?? 'N/A' }}
+                                                                @if ($selectedCustomer['id_number'] ?? false)
                                                                     • ID: {{ $selectedCustomer['id_number'] }}
                                                                 @endif
                                                             </div>
-                                                            <div class="text-xs text-gray-400 mt-1">
-                                                                <i
-                                                                    class="fas fa-envelope mr-1"></i>{{ $selectedCustomer['email'] }}
-                                                                <i
-                                                                    class="fas fa-phone ml-3 mr-1"></i>{{ $selectedCustomer['phone'] }}
-                                                            </div>
                                                         </div>
                                                     </div>
-                                                    <button type="button" wire:click="clearCustomerSelection"
+                                                    <button type="button" wire:click="clearAccountSelection"
                                                         class="text-gray-400 hover:text-red-600 transition-colors duration-150"
-                                                        title="Clear customer selection">
+                                                        title="Clear selection">
                                                         <i class="fas fa-times text-lg"></i>
                                                     </button>
                                                 </div>
 
-                                                <!-- Customer Accounts Summary -->
-                                                @if (!empty($selectedCustomer['accounts']) && count($selectedCustomer['accounts']) > 0)
-                                                    <div class="mt-4 pt-4 border-t border-gray-200">
-                                                        <div class="flex items-center justify-between mb-2">
-                                                            <h4 class="text-sm font-medium text-gray-700">
-                                                                <i class="fas fa-wallet mr-1"></i>
-                                                                Customer Accounts
-                                                                ({{ count($selectedCustomer['accounts']) }})
-                                                            </h4>
-                                                            <span class="text-xs text-gray-500">
-                                                                Total Balance:
-                                                                <span class="font-semibold">
-                                                                    {{ number_format(array_sum(array_column($selectedCustomer['accounts'], 'current_balance')), 2) }}
-                                                                    {{ $selectedCustomer['accounts'][0]['currency'] ?? 'USD' }}
-                                                                </span>
-                                                            </span>
+                                                <!-- Account Details -->
+                                                <div class="mt-4 pt-4 border-t border-gray-200">
+                                                    <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
+                                                        <div class="bg-blue-50 p-3 rounded">
+                                                            <div class="text-xs text-blue-600">Current Balance</div>
+                                                            <div class="text-lg font-bold text-blue-700">
+                                                                {{ number_format($selectedAccount->current_balance, 2) }}
+                                                                {{ $selectedAccount->currency }}
+                                                            </div>
                                                         </div>
-
-                                                        <div
-                                                            class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
-                                                            @foreach ($customerAccounts as $account)
-                                                                <div class="bg-gray-50 border border-gray-200 rounded-md p-3 hover:bg-blue-50 hover:border-blue-200 transition-colors duration-150 cursor-pointer"
-                                                                    wire:click="$set('sourceAccountId', {{ $account->id }})"
-                                                                    :class="{{ $sourceAccountId == $account->id ? 'border-blue-500 bg-blue-50 ring-2 ring-blue-100' : '' }}">
-                                                                    <div class="flex justify-between items-start">
-                                                                        <div>
-                                                                            <div
-                                                                                class="text-sm font-medium text-gray-900">
-                                                                                {{ $account->account_number }}
-                                                                            </div>
-                                                                            <div class="text-xs text-gray-600">
-                                                                                {{ $account->accountType->name ?? 'N/A' }}
-                                                                            </div>
-                                                                        </div>
-                                                                        @if ($sourceAccountId == $account->id)
-                                                                            <i
-                                                                                class="fas fa-check-circle text-green-500"></i>
-                                                                        @endif
-                                                                    </div>
-                                                                    <div class="mt-2">
-                                                                        <div class="text-xs text-gray-500">Current
-                                                                            Balance</div>
-                                                                        <div
-                                                                            class="text-lg font-semibold {{ $account->current_balance >= 0 ? 'text-green-600' : 'text-red-600' }}">
-                                                                            {{ number_format($account->current_balance, 2) }}
-                                                                            {{ $account->currency }}
-                                                                        </div>
-                                                                    </div>
-                                                                    <div class="mt-1 text-xs text-gray-500">
-                                                                        Available:
-                                                                        {{ number_format($account->available_balance, 2) }}
-                                                                    </div>
-                                                                </div>
-                                                            @endforeach
+                                                        <div class="bg-green-50 p-3 rounded">
+                                                            <div class="text-xs text-green-600">Available Balance</div>
+                                                            <div class="text-lg font-bold text-green-700">
+                                                                {{ number_format($selectedAccount->available_balance, 2) }}
+                                                                {{ $selectedAccount->currency }}
+                                                            </div>
                                                         </div>
-
-                                                        <!-- Quick Stats -->
-                                                        <div
-                                                            class="mt-4 grid grid-cols-2 md:grid-cols-4 gap-3 text-xs">
-                                                            <div class="bg-blue-50 p-2 rounded text-center">
-                                                                <div class="text-blue-700 font-medium">
-                                                                    {{ $customerAccounts->where('status', 'active')->count() }}
-                                                                </div>
-                                                                <div class="text-blue-600">Active</div>
+                                                        <div class="bg-purple-50 p-3 rounded">
+                                                            <div class="text-xs text-purple-600">Account Type</div>
+                                                            <div class="text-lg font-bold text-purple-700">
+                                                                {{ $selectedAccount->accountType->name ?? 'N/A' }}
                                                             </div>
-                                                            <div class="bg-green-50 p-2 rounded text-center">
-                                                                <div class="text-green-700 font-medium">
-                                                                    {{ $customerAccounts->where('current_balance', '>', 0)->count() }}
-                                                                </div>
-                                                                <div class="text-green-600">Positive Balance</div>
-                                                            </div>
-                                                            <div class="bg-yellow-50 p-2 rounded text-center">
-                                                                <div class="text-yellow-700 font-medium">
-                                                                    {{ $customerAccounts->where('current_balance', '<', 0)->count() }}
-                                                                </div>
-                                                                <div class="text-yellow-600">Negative Balance</div>
-                                                            </div>
-                                                            <div class="bg-purple-50 p-2 rounded text-center">
-                                                                <div class="text-purple-700 font-medium">
-                                                                    {{ $beneficiaries->count() }}</div>
-                                                                <div class="text-purple-600">Saved Beneficiaries
-                                                                </div>
+                                                        </div>
+                                                        <div class="bg-yellow-50 p-3 rounded">
+                                                            <div class="text-xs text-yellow-600">Status</div>
+                                                            <div class="text-lg font-bold text-yellow-700">
+                                                                {{ ucfirst($selectedAccount->status) }}
                                                             </div>
                                                         </div>
                                                     </div>
-                                                @else
-                                                    <div
-                                                        class="mt-4 bg-yellow-50 border border-yellow-200 rounded-md p-4">
-                                                        <div class="flex">
-                                                            <div class="flex-shrink-0">
-                                                                <i
-                                                                    class="fas fa-exclamation-triangle text-yellow-500"></i>
-                                                            </div>
-                                                            <div class="ml-3">
-                                                                <h4 class="text-sm font-medium text-yellow-800">No
-                                                                    Active Accounts</h4>
-                                                                <div class="mt-1 text-sm text-yellow-700">
-                                                                    <p>This customer has no active accounts. Please:
+
+                                                    <!-- Initial Deposit Warning -->
+                                                    @if (!$hasInitialDeposit && $transactionType !== 'initial_deposit')
+                                                        <div
+                                                            class="mt-4 bg-yellow-50 border border-yellow-200 rounded-md p-4">
+                                                            <div class="flex">
+                                                                <div class="flex-shrink-0">
+                                                                    <i
+                                                                        class="fas fa-exclamation-triangle text-yellow-500"></i>
+                                                                </div>
+                                                                <div class="ml-3">
+                                                                    <h4 class="text-sm font-medium text-yellow-800">
+                                                                        Initial Deposit Required</h4>
+                                                                    <p class="text-sm text-yellow-700 mt-1">
+                                                                        This account requires an initial deposit before
+                                                                        any other transactions can be performed.
+                                                                        Please process an initial deposit first.
                                                                     </p>
-                                                                    <ul class="list-disc pl-5 mt-1 space-y-1">
-                                                                        <li>Check if the customer has closed all
-                                                                            accounts</li>
-                                                                        <li>Verify if accounts are frozen or
-                                                                            suspended</li>
-                                                                        <li>Create a new account for the customer
-                                                                        </li>
-                                                                    </ul>
-                                                                </div>
-                                                                <div class="mt-3">
-                                                                    <a href="{{ route('accounts.create', ['customer_id' => $customerId]) }}"
-                                                                        class="inline-flex items-center px-3 py-1 border border-transparent text-xs font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500">
-                                                                        <i class="fas fa-plus-circle mr-1"></i>
-                                                                        Create New Account
-                                                                    </a>
                                                                 </div>
                                                             </div>
                                                         </div>
-                                                    </div>
-                                                @endif
-                                            </div>
-                                        @endif
-
-                                        <!-- Validation Error Message -->
-                                        @if (!$customerId && $step >= 2)
-                                            <div class="mt-2 bg-red-50 border border-red-200 rounded-md p-3">
-                                                <div class="flex">
-                                                    <div class="flex-shrink-0">
-                                                        <i class="fas fa-exclamation-circle text-red-500"></i>
-                                                    </div>
-                                                    <div class="ml-3">
-                                                        <p class="text-sm text-red-700">
-                                                            Please select a customer to continue with the transaction.
-                                                        </p>
-                                                    </div>
+                                                    @endif
                                                 </div>
                                             </div>
                                         @endif
@@ -788,95 +663,97 @@
                                         2. Transaction Details
                                     </h3>
 
-                                    <div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3 mb-6">
-                                        <button type="button" wire:click="$set('transactionType', 'transfer')"
-                                            class="p-4 border rounded-lg flex flex-col items-center justify-center transition-all duration-200
-                                                {{ $transactionType === 'transfer' ? 'border-blue-500 bg-blue-50 ring-2 ring-blue-200' : 'border-gray-300 hover:border-blue-300 hover:bg-blue-50' }}">
-                                            <div
-                                                class="w-10 h-10 rounded-full flex items-center justify-center mb-2
-                                                {{ $transactionType === 'transfer' ? 'bg-blue-100 text-blue-600' : 'bg-gray-100 text-gray-600' }}">
-                                                <i class="fas fa-exchange-alt"></i>
+                                    @if (!$sourceAccountId)
+                                        <div class="bg-yellow-50 border border-yellow-200 rounded-md p-4 mb-4">
+                                            <div class="flex">
+                                                <div class="flex-shrink-0">
+                                                    <i class="fas fa-exclamation-triangle text-yellow-500"></i>
+                                                </div>
+                                                <div class="ml-3">
+                                                    <p class="text-sm text-yellow-700">
+                                                        Please select an account first to see available transaction
+                                                        types.
+                                                    </p>
+                                                </div>
                                             </div>
-                                            <span class="text-sm font-medium">Transfer</span>
-                                        </button>
+                                        </div>
+                                    @else
+                                        <div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3 mb-6">
+                                            @php $availableTypes = $this->getAvailableTransactionTypes(); @endphp
 
-                                        <button type="button" wire:click="$set('transactionType', 'withdrawal')"
-                                            class="p-4 border rounded-lg flex flex-col items-center justify-center transition-all duration-200
-                                                {{ $transactionType === 'withdrawal' ? 'border-blue-500 bg-blue-50 ring-2 ring-blue-200' : 'border-gray-300 hover:border-blue-300 hover:bg-blue-50' }}">
-                                            <div
-                                                class="w-10 h-10 rounded-full flex items-center justify-center mb-2
-                                                {{ $transactionType === 'withdrawal' ? 'bg-blue-100 text-blue-600' : 'bg-gray-100 text-gray-600' }}">
-                                                <i class="fas fa-money-bill-wave"></i>
-                                            </div>
-                                            <span class="text-sm font-medium">Withdrawal</span>
-                                        </button>
+                                            @foreach ($availableTypes as $type => $label)
+                                                <button type="button"
+                                                    wire:click="$set('transactionType', '{{ $type }}')"
+                                                    class="p-4 border rounded-lg flex flex-col items-center justify-center transition-all duration-200 {{ $transactionType === $type ? 'border-blue-500 bg-blue-50 ring-2 ring-blue-200' : 'border-gray-300 hover:border-blue-300 hover:bg-blue-50' }}">
+                                                    <div
+                                                        class="w-10 h-10 rounded-full flex items-center justify-center mb-2 {{ $transactionType === $type ? 'bg-blue-100 text-blue-600' : 'bg-gray-100 text-gray-600' }}">
+                                                        @switch($type)
+                                                            @case('initial_deposit')
+                                                                <i class="fas fa-plus-circle"></i>
+                                                            @break
 
-                                        <button type="button" wire:click="$set('transactionType', 'cash_deposit')"
-                                            class="p-4 border rounded-lg flex flex-col items-center justify-center transition-all duration-200
-                                                {{ $transactionType === 'cash_deposit' ? 'border-blue-500 bg-blue-50 ring-2 ring-blue-200' : 'border-gray-300 hover:border-blue-300 hover:bg-blue-50' }}">
-                                            <div
-                                                class="w-10 h-10 rounded-full flex items-center justify-center mb-2
-                                                {{ $transactionType === 'cash_deposit' ? 'bg-blue-100 text-blue-600' : 'bg-gray-100 text-gray-600' }}">
-                                                <i class="fas fa-money-check"></i>
-                                            </div>
-                                            <span class="text-sm font-medium">Cash Deposit</span>
-                                        </button>
+                                                            @case('transfer')
+                                                                <i class="fas fa-exchange-alt"></i>
+                                                            @break
 
-                                        <button type="button" wire:click="$set('transactionType', 'cheque_deposit')"
-                                            class="p-4 border rounded-lg flex flex-col items-center justify-center transition-all duration-200
-                                                {{ $transactionType === 'cheque_deposit' ? 'border-blue-500 bg-blue-50 ring-2 ring-blue-200' : 'border-gray-300 hover:border-blue-300 hover:bg-blue-50' }}">
-                                            <div
-                                                class="w-10 h-10 rounded-full flex items-center justify-center mb-2
-                                                {{ $transactionType === 'cheque_deposit' ? 'bg-blue-100 text-blue-600' : 'bg-gray-100 text-gray-600' }}">
-                                                <i class="fas fa-file-invoice"></i>
-                                            </div>
-                                            <span class="text-sm font-medium">Cheque Deposit</span>
-                                        </button>
+                                                            @case('withdrawal')
+                                                                <i class="fas fa-money-bill-wave"></i>
+                                                            @break
 
-                                        <button type="button" wire:click="$set('transactionType', 'bill_payment')"
-                                            class="p-4 border rounded-lg flex flex-col items-center justify-center transition-all duration-200
-                                                {{ $transactionType === 'bill_payment' ? 'border-blue-500 bg-blue-50 ring-2 ring-blue-200' : 'border-gray-300 hover:border-blue-300 hover:bg-blue-50' }}">
-                                            <div
-                                                class="w-10 h-10 rounded-full flex items-center justify-center mb-2
-                                                {{ $transactionType === 'bill_payment' ? 'bg-blue-100 text-blue-600' : 'bg-gray-100 text-gray-600' }}">
-                                                <i class="fas fa-file-invoice-dollar"></i>
-                                            </div>
-                                            <span class="text-sm font-medium">Bill Payment</span>
-                                        </button>
+                                                            @case('cash_deposit')
+                                                                <i class="fas fa-money-check"></i>
+                                                            @break
 
-                                        <button type="button" wire:click="$set('transactionType', 'loan_payment')"
-                                            class="p-4 border rounded-lg flex flex-col items-center justify-center transition-all duration-200
-                                                {{ $transactionType === 'loan_payment' ? 'border-blue-500 bg-blue-50 ring-2 ring-blue-200' : 'border-gray-300 hover:border-blue-300 hover:bg-blue-50' }}">
-                                            <div
-                                                class="w-10 h-10 rounded-full flex items-center justify-center mb-2
-                                                {{ $transactionType === 'loan_payment' ? 'bg-blue-100 text-blue-600' : 'bg-gray-100 text-gray-600' }}">
-                                                <i class="fas fa-hand-holding-usd"></i>
-                                            </div>
-                                            <span class="text-sm font-medium">Loan Payment</span>
-                                        </button>
+                                                            @case('cheque_deposit')
+                                                                <i class="fas fa-file-invoice"></i>
+                                                            @break
 
-                                        <button type="button" wire:click="$set('transactionType', 'fee_collection')"
-                                            class="p-4 border rounded-lg flex flex-col items-center justify-center transition-all duration-200
-                                                {{ $transactionType === 'fee_collection' ? 'border-blue-500 bg-blue-50 ring-2 ring-blue-200' : 'border-gray-300 hover:border-blue-300 hover:bg-blue-50' }}">
-                                            <div
-                                                class="w-10 h-10 rounded-full flex items-center justify-center mb-2
-                                                {{ $transactionType === 'fee_collection' ? 'bg-blue-100 text-blue-600' : 'bg-gray-100 text-gray-600' }}">
-                                                <i class="fas fa-credit-card"></i>
-                                            </div>
-                                            <span class="text-sm font-medium">Fee Collection</span>
-                                        </button>
+                                                            @case('bill_payment')
+                                                                <i class="fas fa-file-invoice-dollar"></i>
+                                                            @break
 
-                                        <button type="button" wire:click="$set('transactionType', 'adjustment')"
-                                            class="p-4 border rounded-lg flex flex-col items-center justify-center transition-all duration-200
-                                                {{ $transactionType === 'adjustment' ? 'border-blue-500 bg-blue-50 ring-2 ring-blue-200' : 'border-gray-300 hover:border-blue-300 hover:bg-blue-50' }}">
-                                            <div
-                                                class="w-10 h-10 rounded-full flex items-center justify-center mb-2
-                                                {{ $transactionType === 'adjustment' ? 'bg-blue-100 text-blue-600' : 'bg-gray-100 text-gray-600' }}">
-                                                <i class="fas fa-adjust"></i>
+                                                            @case('loan_payment')
+                                                                <i class="fas fa-hand-holding-usd"></i>
+                                                            @break
+
+                                                            @case('fee_collection')
+                                                                <i class="fas fa-credit-card"></i>
+                                                            @break
+
+                                                            @case('adjustment')
+                                                                <i class="fas fa-adjust"></i>
+                                                            @break
+                                                        @endswitch
+                                                    </div>
+                                                    <span class="text-sm font-medium">{{ $label }}</span>
+                                                    @if ($type === 'initial_deposit')
+                                                        <span class="text-xs text-green-600 mt-1">Required first
+                                                            transaction</span>
+                                                    @endif
+                                                </button>
+                                            @endforeach
+                                        </div>
+
+                                        @if (!$this->hasInitialDeposit && $transactionType !== 'initial_deposit')
+                                            <div class="mt-4 bg-red-50 border border-red-200 rounded-md p-4">
+                                                <div class="flex">
+                                                    <div class="flex-shrink-0">
+                                                        <i class="fas fa-exclamation-circle text-red-500"></i>
+                                                    </div>
+                                                    <div class="ml-3">
+                                                        <h4 class="text-sm font-medium text-red-800">Initial Deposit
+                                                            Required</h4>
+                                                        <p class="text-sm text-red-700 mt-1">
+                                                            This account requires an initial deposit before any other
+                                                            transactions can be performed.
+                                                            Please select "Initial Deposit" from the options above.
+                                                        </p>
+                                                    </div>
+                                                </div>
                                             </div>
-                                            <span class="text-sm font-medium">Adjustment</span>
-                                        </button>
-                                    </div>
+                                        @endif
+                                    @endif
+
                                     @error('transactionType')
                                         <p class="mt-1 text-sm text-red-600">{{ $message }}</p>
                                     @enderror
@@ -948,10 +825,7 @@
                                                                             </div>
                                                                             <div class="mt-1">
                                                                                 <span
-                                                                                    class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium 
-                                                {{ $account->status === 'active' ? 'bg-green-100 text-green-800' : '' }}
-                                                {{ $account->status === 'frozen' ? 'bg-red-100 text-red-800' : '' }}
-                                                {{ $account->status === 'closed' ? 'bg-gray-100 text-gray-800' : '' }}">
+                                                                                    class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium  {{ $account->status === 'active' ? 'bg-green-100 text-green-800' : '' }} {{ $account->status === 'frozen' ? 'bg-red-100 text-red-800' : '' }} {{ $account->status === 'closed' ? 'bg-gray-100 text-gray-800' : '' }}">
                                                                                     {{ ucfirst($account->status) }}
                                                                                 </span>
                                                                             </div>
@@ -1162,223 +1036,230 @@
                                         </div>
 
                                         <div>
-                                            <label for="transactionPurpose"
-                                                class="block text-sm font-medium text-gray-700">
-                                                Transaction Purpose <span class="text-red-500">*</span>
-                                            </label>
-                                            <select wire:model="transactionPurpose" id="transactionPurpose"
-                                                class="professional-input block w-full pl-16 pr-4 py-3 text-base border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent">
-                                                <option value="">Select Purpose</option>
-                                                @foreach ($transactionPurposes as $value => $label)
-                                                    <option value="{{ $value }}">{{ $label }}
-                                                    </option>
-                                                @endforeach
-                                            </select>
-                                            @error('transactionPurpose')
-                                                <p class="mt-1 text-sm text-red-600">{{ $message }}</p>
-                                            @enderror
+                                            <!-- Transaction Purpose - HIDE FOR WITHDRAWALS -->
+                                            @if ($transactionType !== 'withdrawal')
+                                                <div class="mt-4">
+                                                    <label for="transactionPurpose"
+                                                        class="block text-sm font-medium text-gray-700">
+                                                        Transaction Purpose <span class="text-red-500">*</span>
+                                                    </label>
+                                                    <select wire:model="transactionPurpose" id="transactionPurpose"
+                                                        class="professional-input block w-full pl-16 pr-4 py-3 text-base border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent">
+                                                        <option value="">Select Purpose</option>
+                                                        @foreach ($transactionPurposes as $value => $label)
+                                                            <option value="{{ $value }}">{{ $label }}
+                                                            </option>
+                                                        @endforeach
+                                                    </select>
+                                                    @error('transactionPurpose')
+                                                        <p class="mt-1 text-sm text-red-600">{{ $message }}</p>
+                                                    @enderror
+                                                </div>
+                                            @endif
                                         </div>
-                                    </div>
 
-                                    <!-- Description -->
-                                    <div class="mt-4">
-                                        <label for="description" class="block text-sm font-medium text-gray-700">
-                                            Description <span class="text-red-500">*</span>
-                                        </label>
-                                        <input type="text" wire:model="description" id="description"
-                                            class="professional-input block w-full pl-16 pr-4 py-3 text-base border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                                            placeholder="Enter transaction description...">
-                                        @error('description')
-                                            <p class="mt-1 text-sm text-red-600">{{ $message }}</p>
-                                        @enderror
-                                    </div>
-
-                                    <!-- Type-specific Fields -->
-                                    @if (in_array($transactionType, ['withdrawal', 'cash_deposit']))
-                                        <div class="mt-4 grid grid-cols-1 md:grid-cols-2 gap-4">
-                                            <div>
-                                                <label for="cashHandlingMethod"
-                                                    class="block text-sm font-medium text-gray-700">
-                                                    Method <span class="text-red-500">*</span>
-                                                </label>
-                                                <select wire:model="cashHandlingMethod" id="cashHandlingMethod"
-                                                    class="professional-input block w-full pl-16 pr-4 py-3 text-base border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent">
-                                                    <option value="cash">Cash</option>
-                                                    <option value="cheque">Cheque</option>
-                                                </select>
-                                                @error('cashHandlingMethod')
-                                                    <p class="mt-1 text-sm text-red-600">{{ $message }}</p>
-                                                @enderror
-                                            </div>
-
-                                            <div>
-                                                <label for="cashReferenceNumber"
-                                                    class="block text-sm font-medium text-gray-700">
-                                                    Reference Number <span class="text-red-500">*</span>
-                                                </label>
-                                                <input type="text" wire:model="cashReferenceNumber"
-                                                    id="cashReferenceNumber"
-                                                    class="professional-input block w-full pl-16 pr-4 py-3 text-base border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                                                    placeholder="e.g., Receipt #, Voucher #">
-                                                @error('cashReferenceNumber')
-                                                    <p class="mt-1 text-sm text-red-600">{{ $message }}</p>
-                                                @enderror
-                                            </div>
-                                        </div>
-                                    @endif
-
-                                    @if ($transactionType === 'cheque_deposit')
-                                        <div class="mt-4 grid grid-cols-1 md:grid-cols-2 gap-4">
-                                            <div>
-                                                <label for="chequeNumber"
-                                                    class="block text-sm font-medium text-gray-700">
-                                                    Cheque Number <span class="text-red-500">*</span>
-                                                </label>
-                                                <input type="text" wire:model="chequeNumber" id="chequeNumber"
-                                                    class="professional-input block w-full pl-16 pr-4 py-3 text-base border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                                                    placeholder="Cheque number">
-                                                @error('chequeNumber')
-                                                    <p class="mt-1 text-sm text-red-600">{{ $message }}</p>
-                                                @enderror
-                                            </div>
-
-                                            <div>
-                                                <label for="drawerBank"
-                                                    class="block text-sm font-medium text-gray-700">
-                                                    Drawer Bank <span class="text-red-500">*</span>
-                                                </label>
-                                                <input type="text" wire:model="drawerBank" id="drawerBank"
-                                                    class="professional-input block w-full pl-16 pr-4 py-3 text-base border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                                                    placeholder="Bank name">
-                                                @error('drawerBank')
-                                                    <p class="mt-1 text-sm text-red-600">{{ $message }}</p>
-                                                @enderror
-                                            </div>
-                                        </div>
-                                    @endif
-
-                                    @if ($transactionType === 'loan_payment')
+                                        <!-- Description -->
                                         <div class="mt-4">
-                                            <label for="loanAccountNumber"
-                                                class="block text-sm font-medium text-gray-700">
-                                                Loan Account Number <span class="text-red-500">*</span>
+                                            <label for="description" class="block text-sm font-medium text-gray-700">
+                                                Description <span class="text-red-500">*</span>
                                             </label>
-                                            <input type="text" wire:model="loanAccountNumber"
-                                                id="loanAccountNumber"
+                                            <input type="text" wire:model="description" id="description"
                                                 class="professional-input block w-full pl-16 pr-4 py-3 text-base border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                                                placeholder="Loan account number">
-                                            @error('loanAccountNumber')
+                                                placeholder="Enter transaction description...">
+                                            @error('description')
                                                 <p class="mt-1 text-sm text-red-600">{{ $message }}</p>
                                             @enderror
                                         </div>
-                                    @endif
 
-                                    @if ($transactionType === 'fee_collection')
-                                        <div class="mt-4 grid grid-cols-1 md:grid-cols-2 gap-4">
-                                            <div>
-                                                <label for="feeType" class="block text-sm font-medium text-gray-700">
-                                                    Fee Type <span class="text-red-500">*</span>
-                                                </label>
-                                                <select wire:model="feeType" id="feeType"
-                                                    class="professional-input block w-full pl-16 pr-4 py-3 text-base border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent">
-                                                    <option value="">Select Fee Type</option>
-                                                    @foreach ($feeTypes as $value => $label)
-                                                        <option value="{{ $value }}">{{ $label }}
-                                                        </option>
-                                                    @endforeach
-                                                </select>
-                                                @error('feeType')
-                                                    <p class="mt-1 text-sm text-red-600">{{ $message }}</p>
-                                                @enderror
+                                        <!-- Type-specific Fields -->
+                                        @if (in_array($transactionType, ['withdrawal', 'cash_deposit']))
+                                            <div class="mt-4 grid grid-cols-1 md:grid-cols-2 gap-4">
+                                                <div>
+                                                    <label for="cashHandlingMethod"
+                                                        class="block text-sm font-medium text-gray-700">
+                                                        Method <span class="text-red-500">*</span>
+                                                    </label>
+                                                    <select wire:model="cashHandlingMethod" id="cashHandlingMethod"
+                                                        class="professional-input block w-full pl-16 pr-4 py-3 text-base border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent">
+                                                        <option value="cash">Cash</option>
+                                                        <option value="cheque">Cheque</option>
+                                                    </select>
+                                                    @error('cashHandlingMethod')
+                                                        <p class="mt-1 text-sm text-red-600">{{ $message }}</p>
+                                                    @enderror
+                                                </div>
+
+                                                <div>
+                                                    <label for="cashReferenceNumber"
+                                                        class="block text-sm font-medium text-gray-700">
+                                                        Reference Number <span class="text-red-500">*</span>
+                                                    </label>
+                                                    <input type="text" wire:model="cashReferenceNumber"
+                                                        id="cashReferenceNumber"
+                                                        class="professional-input block w-full pl-16 pr-4 py-3 text-base border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                                                        placeholder="e.g., Receipt #, Voucher #">
+                                                    @error('cashReferenceNumber')
+                                                        <p class="mt-1 text-sm text-red-600">{{ $message }}</p>
+                                                    @enderror
+                                                </div>
                                             </div>
+                                        @endif
 
-                                            <div>
-                                                <label for="feeDescription"
+                                        @if ($transactionType === 'cheque_deposit')
+                                            <div class="mt-4 grid grid-cols-1 md:grid-cols-2 gap-4">
+                                                <div>
+                                                    <label for="chequeNumber"
+                                                        class="block text-sm font-medium text-gray-700">
+                                                        Cheque Number <span class="text-red-500">*</span>
+                                                    </label>
+                                                    <input type="text" wire:model="chequeNumber" id="chequeNumber"
+                                                        class="professional-input block w-full pl-16 pr-4 py-3 text-base border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                                                        placeholder="Cheque number">
+                                                    @error('chequeNumber')
+                                                        <p class="mt-1 text-sm text-red-600">{{ $message }}</p>
+                                                    @enderror
+                                                </div>
+
+                                                <div>
+                                                    <label for="drawerBank"
+                                                        class="block text-sm font-medium text-gray-700">
+                                                        Drawer Bank <span class="text-red-500">*</span>
+                                                    </label>
+                                                    <input type="text" wire:model="drawerBank" id="drawerBank"
+                                                        class="professional-input block w-full pl-16 pr-4 py-3 text-base border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                                                        placeholder="Bank name">
+                                                    @error('drawerBank')
+                                                        <p class="mt-1 text-sm text-red-600">{{ $message }}</p>
+                                                    @enderror
+                                                </div>
+                                            </div>
+                                        @endif
+
+                                        @if ($transactionType === 'loan_payment')
+                                            <div class="mt-4">
+                                                <label for="loanAccountNumber"
                                                     class="block text-sm font-medium text-gray-700">
-                                                    Fee Description <span class="text-red-500">*</span>
+                                                    Loan Account Number <span class="text-red-500">*</span>
                                                 </label>
-                                                <input type="text" wire:model="feeDescription" id="feeDescription"
+                                                <input type="text" wire:model="loanAccountNumber"
+                                                    id="loanAccountNumber"
                                                     class="professional-input block w-full pl-16 pr-4 py-3 text-base border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                                                    placeholder="Description of the fee">
-                                                @error('feeDescription')
+                                                    placeholder="Loan account number">
+                                                @error('loanAccountNumber')
                                                     <p class="mt-1 text-sm text-red-600">{{ $message }}</p>
                                                 @enderror
                                             </div>
-                                        </div>
-                                    @endif
+                                        @endif
 
-                                    @if ($transactionType === 'adjustment')
-                                        <div class="mt-4 grid grid-cols-1 md:grid-cols-2 gap-4">
-                                            <div>
-                                                <label for="adjustmentType"
-                                                    class="block text-sm font-medium text-gray-700">
-                                                    Adjustment Type <span class="text-red-500">*</span>
-                                                </label>
-                                                <select wire:model="adjustmentType" id="adjustmentType"
-                                                    class="professional-input block w-full pl-16 pr-4 py-3 text-base border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent">
-                                                    <option value="">Select Adjustment Type</option>
-                                                    @foreach ($adjustmentTypes as $value => $label)
-                                                        <option value="{{ $value }}">{{ $label }}
-                                                        </option>
-                                                    @endforeach
-                                                </select>
-                                                @error('adjustmentType')
-                                                    <p class="mt-1 text-sm text-red-600">{{ $message }}</p>
-                                                @enderror
-                                            </div>
+                                        @if ($transactionType === 'fee_collection')
+                                            <div class="mt-4 grid grid-cols-1 md:grid-cols-2 gap-4">
+                                                <div>
+                                                    <label for="feeType"
+                                                        class="block text-sm font-medium text-gray-700">
+                                                        Fee Type <span class="text-red-500">*</span>
+                                                    </label>
+                                                    <select wire:model="feeType" id="feeType"
+                                                        class="professional-input block w-full pl-16 pr-4 py-3 text-base border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent">
+                                                        <option value="">Select Fee Type</option>
+                                                        @foreach ($feeTypes as $value => $label)
+                                                            <option value="{{ $value }}">{{ $label }}
+                                                            </option>
+                                                        @endforeach
+                                                    </select>
+                                                    @error('feeType')
+                                                        <p class="mt-1 text-sm text-red-600">{{ $message }}</p>
+                                                    @enderror
+                                                </div>
 
-                                            <div>
-                                                <label for="adjustmentReason"
-                                                    class="block text-sm font-medium text-gray-700">
-                                                    Adjustment Reason <span class="text-red-500">*</span>
-                                                </label>
-                                                <input type="text" wire:model="adjustmentReason"
-                                                    id="adjustmentReason"
-                                                    class="professional-input block w-full pl-16 pr-4 py-3 text-base border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                                                    placeholder="Reason for adjustment">
-                                                @error('adjustmentReason')
-                                                    <p class="mt-1 text-sm text-red-600">{{ $message }}</p>
-                                                @enderror
+                                                <div>
+                                                    <label for="feeDescription"
+                                                        class="block text-sm font-medium text-gray-700">
+                                                        Fee Description <span class="text-red-500">*</span>
+                                                    </label>
+                                                    <input type="text" wire:model="feeDescription"
+                                                        id="feeDescription"
+                                                        class="professional-input block w-full pl-16 pr-4 py-3 text-base border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                                                        placeholder="Description of the fee">
+                                                    @error('feeDescription')
+                                                        <p class="mt-1 text-sm text-red-600">{{ $message }}</p>
+                                                    @enderror
+                                                </div>
                                             </div>
-                                        </div>
-                                    @endif
+                                        @endif
 
-                                    @if ($transactionType === 'bill_payment')
-                                        <div class="mt-4 grid grid-cols-1 md:grid-cols-2 gap-4">
-                                            <div>
-                                                <label for="billType" class="block text-sm font-medium text-gray-700">
-                                                    Bill Type <span class="text-red-500">*</span>
-                                                </label>
-                                                <select wire:model="billType" id="billType"
-                                                    class="professional-input block w-full pl-16 pr-4 py-3 text-base border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent">
-                                                    <option value="">Select Bill Type</option>
-                                                    @foreach ($billTypes as $value => $label)
-                                                        <option value="{{ $value }}">{{ $label }}
-                                                        </option>
-                                                    @endforeach
-                                                </select>
-                                                @error('billType')
-                                                    <p class="mt-1 text-sm text-red-600">{{ $message }}</p>
-                                                @enderror
-                                            </div>
+                                        @if ($transactionType === 'adjustment')
+                                            <div class="mt-4 grid grid-cols-1 md:grid-cols-2 gap-4">
+                                                <div>
+                                                    <label for="adjustmentType"
+                                                        class="block text-sm font-medium text-gray-700">
+                                                        Adjustment Type <span class="text-red-500">*</span>
+                                                    </label>
+                                                    <select wire:model="adjustmentType" id="adjustmentType"
+                                                        class="professional-input block w-full pl-16 pr-4 py-3 text-base border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent">
+                                                        <option value="">Select Adjustment Type</option>
+                                                        @foreach ($adjustmentTypes as $value => $label)
+                                                            <option value="{{ $value }}">{{ $label }}
+                                                            </option>
+                                                        @endforeach
+                                                    </select>
+                                                    @error('adjustmentType')
+                                                        <p class="mt-1 text-sm text-red-600">{{ $message }}</p>
+                                                    @enderror
+                                                </div>
 
-                                            <div>
-                                                <label for="billAccountNumber"
-                                                    class="block text-sm font-medium text-gray-700">
-                                                    Bill Account Number <span class="text-red-500">*</span>
-                                                </label>
-                                                <input type="text" wire:model="billAccountNumber"
-                                                    id="billAccountNumber"
-                                                    class="professional-input block w-full pl-16 pr-4 py-3 text-base border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                                                    placeholder="Account number with biller">
-                                                @error('billAccountNumber')
-                                                    <p class="mt-1 text-sm text-red-600">{{ $message }}</p>
-                                                @enderror
+                                                <div>
+                                                    <label for="adjustmentReason"
+                                                        class="block text-sm font-medium text-gray-700">
+                                                        Adjustment Reason <span class="text-red-500">*</span>
+                                                    </label>
+                                                    <input type="text" wire:model="adjustmentReason"
+                                                        id="adjustmentReason"
+                                                        class="professional-input block w-full pl-16 pr-4 py-3 text-base border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                                                        placeholder="Reason for adjustment">
+                                                    @error('adjustmentReason')
+                                                        <p class="mt-1 text-sm text-red-600">{{ $message }}</p>
+                                                    @enderror
+                                                </div>
                                             </div>
-                                        </div>
-                                    @endif
+                                        @endif
+
+                                        @if ($transactionType === 'bill_payment')
+                                            <div class="mt-4 grid grid-cols-1 md:grid-cols-2 gap-4">
+                                                <div>
+                                                    <label for="billType"
+                                                        class="block text-sm font-medium text-gray-700">
+                                                        Bill Type <span class="text-red-500">*</span>
+                                                    </label>
+                                                    <select wire:model="billType" id="billType"
+                                                        class="professional-input block w-full pl-16 pr-4 py-3 text-base border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent">
+                                                        <option value="">Select Bill Type</option>
+                                                        @foreach ($billTypes as $value => $label)
+                                                            <option value="{{ $value }}">{{ $label }}
+                                                            </option>
+                                                        @endforeach
+                                                    </select>
+                                                    @error('billType')
+                                                        <p class="mt-1 text-sm text-red-600">{{ $message }}</p>
+                                                    @enderror
+                                                </div>
+
+                                                <div>
+                                                    <label for="billAccountNumber"
+                                                        class="block text-sm font-medium text-gray-700">
+                                                        Bill Account Number <span class="text-red-500">*</span>
+                                                    </label>
+                                                    <input type="text" wire:model="billAccountNumber"
+                                                        id="billAccountNumber"
+                                                        class="professional-input block w-full pl-16 pr-4 py-3 text-base border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                                                        placeholder="Account number with biller">
+                                                    @error('billAccountNumber')
+                                                        <p class="mt-1 text-sm text-red-600">{{ $message }}</p>
+                                                    @enderror
+                                                </div>
+                                            </div>
+                                        @endif
+                                    </div>
                                 </div>
-                            </div>
                         @endif
 
                         <!-- Step 2: Transaction Initiator -->
@@ -1401,11 +1282,9 @@
                                         <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
                                             <!-- Self/Account Holder Option -->
                                             <button type="button" wire:click="$set('transactionInitiator', 'self')"
-                                                class="p-4 border rounded-lg flex flex-col items-center justify-center transition-all duration-200
-                            {{ $transactionInitiator === 'self' ? 'border-blue-500 bg-blue-50 ring-2 ring-blue-200' : 'border-gray-300 hover:border-blue-300 hover:bg-blue-50' }}">
+                                                class="p-4 border rounded-lg flex flex-col items-center justify-center transition-all duration-200 {{ $transactionInitiator === 'self' ? 'border-blue-500 bg-blue-50 ring-2 ring-blue-200' : 'border-gray-300 hover:border-blue-300 hover:bg-blue-50' }}">
                                                 <div
-                                                    class="w-12 h-12 rounded-full flex items-center justify-center mb-3
-                                {{ $transactionInitiator === 'self' ? 'bg-blue-100 text-blue-600' : 'bg-gray-100 text-gray-600' }}">
+                                                    class="w-12 h-12 rounded-full flex items-center justify-center mb-3 {{ $transactionInitiator === 'self' ? 'bg-blue-100 text-blue-600' : 'bg-gray-100 text-gray-600' }}">
                                                     <i class="fas fa-user text-xl"></i>
                                                 </div>
                                                 <span class="text-sm font-medium">Account Holder (Self)</span>
@@ -1423,11 +1302,9 @@
                                             <!-- Third Party Option -->
                                             <button type="button"
                                                 wire:click="$set('transactionInitiator', 'third_party')"
-                                                class="p-4 border rounded-lg flex flex-col items-center justify-center transition-all duration-200
-                            {{ $transactionInitiator === 'third_party' ? 'border-blue-500 bg-blue-50 ring-2 ring-blue-200' : 'border-gray-300 hover:border-blue-300 hover:bg-blue-50' }}">
+                                                class="p-4 border rounded-lg flex flex-col items-center justify-center transition-all duration-200 {{ $transactionInitiator === 'third_party' ? 'border-blue-500 bg-blue-50 ring-2 ring-blue-200' : 'border-gray-300 hover:border-blue-300 hover:bg-blue-50' }}">
                                                 <div
-                                                    class="w-12 h-12 rounded-full flex items-center justify-center mb-3
-                                {{ $transactionInitiator === 'third_party' ? 'bg-blue-100 text-blue-600' : 'bg-gray-100 text-gray-600' }}">
+                                                    class="w-12 h-12 rounded-full flex items-center justify-center mb-3 {{ $transactionInitiator === 'third_party' ? 'bg-blue-100 text-blue-600' : 'bg-gray-100 text-gray-600' }}">
                                                     <i class="fas fa-users text-xl"></i>
                                                 </div>
                                                 <span class="text-sm font-medium">Third Party</span>
@@ -1663,43 +1540,146 @@
                                                 </div>
                                             </div>
 
-                                            <!-- Customer Display -->
+                                            <!-- Customer Profile & Signature Display -->
                                             @if ($selectedCustomer)
-                                                <div class="bg-white border border-gray-200 rounded-md p-4">
-                                                    <div class="flex items-center">
-                                                        @if ($selectedCustomer['profile_photo_url'])
-                                                            <img class="h-12 w-12 rounded-full"
-                                                                src="{{ $selectedCustomer['profile_photo_url'] }}"
-                                                                alt="{{ $selectedCustomer['full_name'] }}">
-                                                        @else
-                                                            <div
-                                                                class="h-12 w-12 rounded-full bg-blue-100 flex items-center justify-center">
-                                                                <span class="text-blue-600 font-medium text-lg">
-                                                                    {{ substr($selectedCustomer['full_name'], 0, 1) }}
-                                                                </span>
+                                                <div class="bg-white border border-gray-200 rounded-lg p-6">
+                                                    <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                                        <!-- Left Column - Profile Photo -->
+                                                        <div class="border-r border-gray-200 pr-6">
+                                                            <h5
+                                                                class="text-sm font-medium text-gray-700 mb-3 flex items-center">
+                                                                <i class="fas fa-camera mr-2 text-blue-500"></i>
+                                                                Profile Photo
+                                                            </h5>
+                                                            <div class="flex items-center space-x-4">
+                                                                <div class="flex-shrink-0">
+                                                                    @if ($selectedCustomer['profile_photo_url'])
+                                                                        <img class="h-20 w-20 rounded-full object-cover border-2 border-blue-200"
+                                                                            src="{{ $selectedCustomer['profile_photo_url'] }}"
+                                                                            alt="{{ $selectedCustomer['full_name'] }}"
+                                                                            onerror="this.onerror=null; this.src='{{ $this->getDefaultProfilePhoto($selectedCustomer['full_name']) }}'">
+                                                                    @else
+                                                                        <div
+                                                                            class="h-20 w-20 rounded-full bg-blue-100 flex items-center justify-center border-2 border-blue-200">
+                                                                            <span
+                                                                                class="text-blue-600 font-bold text-2xl">
+                                                                                {{ substr($selectedCustomer['full_name'], 0, 1) }}
+                                                                            </span>
+                                                                        </div>
+                                                                    @endif
+                                                                </div>
+                                                                <div>
+                                                                    <div class="text-lg font-medium text-gray-900">
+                                                                        {{ $selectedCustomer['full_name'] }}
+                                                                    </div>
+                                                                    <div class="text-sm text-gray-600 mt-1">
+                                                                        Customer
+                                                                        #{{ $selectedCustomer['customer_number'] }}
+                                                                    </div>
+                                                                    <div class="flex items-center mt-2">
+                                                                        <span
+                                                                            class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
+                                                                            <i class="fas fa-user-check mr-1"></i>
+                                                                            Present at Counter
+                                                                        </span>
+                                                                        @if ($selectedCustomer['kyc_status'] === 'verified')
+                                                                            <span
+                                                                                class="ml-2 inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
+                                                                                <i class="fas fa-shield-alt mr-1"></i>
+                                                                                KYC Verified
+                                                                            </span>
+                                                                        @endif
+                                                                    </div>
+                                                                </div>
                                                             </div>
-                                                        @endif
-                                                        <div class="ml-4">
-                                                            <div class="flex items-center">
-                                                                <div class="text-lg font-medium text-gray-900">
-                                                                    {{ $selectedCustomer['full_name'] }}</div>
-                                                                <span
-                                                                    class="ml-2 inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
-                                                                    <i class="fas fa-user-check mr-1"></i>
-                                                                    Present at Counter
-                                                                </span>
+
+                                                            <!-- Customer Contact Info -->
+                                                            <div class="mt-4 grid grid-cols-2 gap-3 text-sm">
+                                                                <div>
+                                                                    <p class="text-gray-500">Email</p>
+                                                                    <p class="font-medium text-gray-900">
+                                                                        {{ $selectedCustomer['email'] ?? 'N/A' }}</p>
+                                                                </div>
+                                                                <div>
+                                                                    <p class="text-gray-500">Phone</p>
+                                                                    <p class="font-medium text-gray-900">
+                                                                        {{ $selectedCustomer['phone'] ?? 'N/A' }}</p>
+                                                                </div>
                                                             </div>
-                                                            <div class="text-sm text-gray-600 mt-1">
-                                                                Customer #{{ $selectedCustomer['customer_number'] }}
-                                                                @if ($selectedCustomer['id_number'])
-                                                                    • ID: {{ $selectedCustomer['id_number'] }}
-                                                                @endif
-                                                            </div>
-                                                            <div class="text-xs text-gray-400 mt-1">
-                                                                <i
-                                                                    class="fas fa-envelope mr-1"></i>{{ $selectedCustomer['email'] }}
-                                                                <i
-                                                                    class="fas fa-phone ml-3 mr-1"></i>{{ $selectedCustomer['phone'] }}
+                                                            @if ($selectedCustomer['id_number'])
+                                                                <div class="mt-2 text-sm">
+                                                                    <p class="text-gray-500">ID Number</p>
+                                                                    <p class="font-medium text-gray-900">
+                                                                        {{ $selectedCustomer['id_number'] }}</p>
+                                                                </div>
+                                                            @endif
+                                                        </div>
+
+                                                        <!-- Right Column - Signature -->
+                                                        <div class="pl-6">
+                                                            <h5
+                                                                class="text-sm font-medium text-gray-700 mb-3 flex items-center">
+                                                                <i class="fas fa-signature mr-2 text-blue-500"></i>
+                                                                Customer Signature
+                                                            </h5>
+
+                                                            @php
+                                                                // Get signature data from the customer using the checkSignatureFile method
+                                                                $signatureCheck = $this->checkSignatureFile(
+                                                                    $selectedCustomer['id'] ?? null,
+                                                                );
+                                                            @endphp
+
+                                                            @if ($signatureCheck && $signatureCheck['storage_exists'])
+                                                                @php
+                                                                    // Use the direct storage path URL
+                                                                    $signatureUrl = $signatureCheck['url'];
+                                                                @endphp
+
+                                                                <div
+                                                                    class="border border-gray-200 rounded-lg p-4 bg-gray-50">
+                                                                    <img src="{{ $signatureUrl }}"
+                                                                        alt="Customer Signature"
+                                                                        class="max-h-32 mx-auto"
+                                                                        onerror="this.onerror=null; this.style.display='none'; this.nextElementSibling.style.display='block';">
+                                                                    <div class="text-center text-gray-500 py-4"
+                                                                        style="display: none;">
+                                                                        <i class="fas fa-signature text-3xl mb-2"></i>
+                                                                        <p class="text-sm">Signature preview
+                                                                            unavailable</p>
+                                                                        <p class="text-xs text-gray-400 mt-1">Please
+                                                                            check storage link</p>
+                                                                    </div>
+                                                                    <div class="mt-2 text-center">
+                                                                        <span
+                                                                            class="inline-flex items-center text-xs text-green-600">
+                                                                            <i class="fas fa-check-circle mr-1"></i>
+                                                                            Signature on file
+                                                                        </span>
+                                                                    </div>
+                                                                </div>
+                                                            @else
+                                                                <div
+                                                                    class="border border-gray-200 rounded-lg p-6 bg-gray-50 text-center">
+                                                                    <i
+                                                                        class="fas fa-signature text-4xl text-gray-300 mb-2"></i>
+                                                                    <p class="text-sm text-gray-500">No signature on
+                                                                        file</p>
+                                                                    <p class="text-xs text-gray-400 mt-1">Will capture
+                                                                        during transaction</p>
+                                                                </div>
+                                                            @endif
+
+                                                            <!-- Signature Verification Checkbox -->
+                                                            <div class="mt-4">
+                                                                <label class="flex items-center">
+                                                                    <input type="checkbox"
+                                                                        wire:model="customerSignature"
+                                                                        class="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded">
+                                                                    <span class="ml-2 text-sm text-gray-700">
+                                                                        Customer signature verified on transaction slip
+                                                                    </span>
+                                                                </label>
                                                             </div>
                                                         </div>
                                                     </div>
@@ -1730,11 +1710,9 @@
                                             <div class="grid grid-cols-1 md:grid-cols-3 gap-3">
                                                 <button type="button"
                                                     wire:click="$set('customerVerificationMethod', 'signature')"
-                                                    class="p-3 border rounded-lg flex flex-col items-center justify-center transition-all duration-200
-                                {{ $customerVerificationMethod === 'signature' ? 'border-blue-500 bg-blue-50 ring-2 ring-blue-200' : 'border-gray-300 hover:border-blue-300 hover:bg-blue-50' }}">
+                                                    class="p-3 border rounded-lg flex flex-col items-center justify-center transition-all duration-200{{ $customerVerificationMethod === 'signature' ? 'border-blue-500 bg-blue-50 ring-2 ring-blue-200' : 'border-gray-300 hover:border-blue-300 hover:bg-blue-50' }}">
                                                     <div
-                                                        class="w-8 h-8 rounded-full flex items-center justify-center mb-1
-                                {{ $customerVerificationMethod === 'signature' ? 'bg-blue-100 text-blue-600' : 'bg-gray-100 text-gray-600' }}">
+                                                        class="w-8 h-8 rounded-full flex items-center justify-center mb-1{{ $customerVerificationMethod === 'signature' ? 'bg-blue-100 text-blue-600' : 'bg-gray-100 text-gray-600' }}">
                                                         <i class="fas fa-signature"></i>
                                                     </div>
                                                     <span class="text-sm font-medium">Signature</span>
@@ -1789,7 +1767,7 @@
                                                         ID Type
                                                     </label>
                                                     <input type="text" wire:model="idType" id="idType"
-                                                         class="professional-input block w-full pl-16 pr-4 py-3 text-base border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                                                        class="professional-input block w-full pl-16 pr-4 py-3 text-base border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                                                         placeholder="e.g., Passport, Driver's License">
                                                 </div>
 
@@ -1799,7 +1777,7 @@
                                                         ID Number
                                                     </label>
                                                     <input type="text" wire:model="idNumber" id="idNumber"
-                                                         class="professional-input block w-full pl-16 pr-4 py-3 text-base border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                                                        class="professional-input block w-full pl-16 pr-4 py-3 text-base border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                                                         placeholder="ID number">
                                                 </div>
                                             </div>

@@ -7,6 +7,7 @@ enum Role: string
     case SUPER_ADMIN = 'super-admin';
     case ADMIN = 'admin';
     case MANAGER = 'manager';
+    case LOAN_OFFICER = 'loan-officer';
     case TELLER = 'teller';
     case ACCOUNTANT = 'accountant';
     case AUDITOR = 'auditor';
@@ -18,12 +19,13 @@ enum Role: string
         return match ($this) {
             self::SUPER_ADMIN => 'Super Admin',
             self::ADMIN => 'Admin',
-            self::MANAGER => 'Branch Manager',
+            self::MANAGER => 'Manager',
+            self::LOAN_OFFICER => 'Loan Officer',
             self::TELLER => 'Teller',
             self::ACCOUNTANT => 'Accountant',
             self::AUDITOR => 'Auditor',
             self::CUSTOMER => 'Customer',
-            self::SUPERVISOR => 'supervisor',
+            self::SUPERVISOR => 'Supervisor',
         };
     }
 
@@ -34,6 +36,7 @@ enum Role: string
             self::SUPER_ADMIN,
             self::ADMIN,
             self::MANAGER,
+            self::LOAN_OFFICER,
             self::TELLER,
             self::ACCOUNTANT,
             self::AUDITOR,

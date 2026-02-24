@@ -618,21 +618,46 @@ class AccountCreate extends Component
         );
     }
 
+    // public function generateAccountNumber()
+    // {
+    //     // Generate account number based on customer type
+    //     $prefix = $this->customer_type === 'organization' ? 'ORG' : 'IND';
+    //     $branchCode = str_pad($this->branch_id ?: '001', 3, '0', STR_PAD_LEFT);
+    //     $timestamp = now()->format('ymdHis');
+    //     $random = str_pad(rand(0, 999), 3, '0', STR_PAD_LEFT);
+
+    //     $this->generatedAccountNumber = $prefix . $branchCode . $timestamp . $random;
+
+    //     // Ensure uniqueness
+    //     while (Account::where('account_number', $this->generatedAccountNumber)->exists()) {
+    //         $random = str_pad(rand(0, 999), 3, '0', STR_PAD_LEFT);
+    //         $this->generatedAccountNumber = $prefix . $branchCode . $timestamp . $random;
+    //     }
+    // }
+
     public function generateAccountNumber()
     {
-        // Generate account number based on customer type
-        $prefix = $this->customer_type === 'organization' ? 'ORG' : 'IND';
-        $branchCode = str_pad($this->branch_id ?: '001', 3, '0', STR_PAD_LEFT);
-        $timestamp = now()->format('ymdHis');
-        $random = str_pad(rand(0, 999), 3, '0', STR_PAD_LEFT);
+        // Ensure branch code exists
+        $branchCode = $this->branch_code ?? '1801010'; // use actual branch code field
 
-        $this->generatedAccountNumber = $prefix . $branchCode . $timestamp . $random;
+        // Get last account for this branch
+        $lastAccount = Account::where('account_number', 'like', $branchCode . '%')
+            ->orderBy('account_number', 'desc')
+            ->first();
 
-        // Ensure uniqueness
-        while (Account::where('account_number', $this->generatedAccountNumber)->exists()) {
-            $random = str_pad(rand(0, 999), 3, '0', STR_PAD_LEFT);
-            $this->generatedAccountNumber = $prefix . $branchCode . $timestamp . $random;
+        if ($lastAccount) {
+            // Extract last 6 digits (sequence part)
+            $lastSequence = (int) substr($lastAccount->account_number, -6);
+            $nextSequence = $lastSequence + 1;
+        } else {
+            // First customer for this branch
+            $nextSequence = 100001;
         }
+
+        // Format sequence to always be 6 digits
+        $sequence = str_pad($nextSequence, 6, '0', STR_PAD_LEFT);
+
+        $this->generatedAccountNumber = $branchCode . $sequence;
     }
 
     public function save()
@@ -821,6 +846,6 @@ class AccountCreate extends Component
         // Update currency symbol
         $this->currencySymbol = $this->getCurrencySymbol($this->currency);
 
-        return view('livewire.accounts.account-create');
+        return view('livewire.accounts.account-create'); 
     }
 }

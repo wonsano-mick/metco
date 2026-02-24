@@ -76,7 +76,7 @@ class UserForm extends Component
         }
 
         // Authorization check - only admins can create/edit users
-        if (!$currentUser->isAdmin()) {
+        if (!$currentUser->isAdmin() && !$currentUser->isManager()) {
             abort(403, 'You do not have permission to manage users.');
         }
 
@@ -109,9 +109,8 @@ class UserForm extends Component
 
         // Validate role assignment - only allow roles that the current user can assign
         if (!$this->canAssignRole($currentUser->role, $this->role)) {
-            $this->showToast('You are not authorized to assign this role.', 'error');
-            $this->addError('role', 'You are not authorized to assign this role.');
-            return;
+            session()->flash('info', 'You are not authorized to assign this role.');
+            return redirect()->route('users.index');
         }
 
         $data = [
@@ -202,7 +201,7 @@ class UserForm extends Component
         $hierarchy = [
             'super-admin' => array_column(Role::cases(), 'value'),
             'admin' => array_column(Role::cases(), 'value'),
-            'manager' => ['teller', 'accountant', 'supervisor','customer'],
+            'manager' => ['teller', 'accountant', 'supervisor','loan-officer','customer'],
             'teller' => [],
             'accountant' => [],
             'auditor' => [],

@@ -45,7 +45,7 @@
                                 <div class="flex-shrink-0">
                                     <div class="h-12 w-12 rounded-lg bg-blue-100 flex items-center justify-center">
                                         <i class="fas fa-exchange-alt text-blue-600"></i>
-                                    </div>
+                                    </div> 
                                 </div>
                                 <div class="ml-5 w-0 flex-1">
                                     <dl>

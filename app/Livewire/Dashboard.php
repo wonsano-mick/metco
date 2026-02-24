@@ -2,7 +2,6 @@
 
 namespace App\Livewire;
 
-use Carbon\Carbon;
 use Livewire\Component;
 use Livewire\WithPagination;
 use App\Models\Eloquent\Loan;
@@ -31,6 +30,10 @@ class Dashboard extends Component
     public function mount()
     {
         $this->role = Auth::user()->role;
+        if ($this->role === 'teller') {
+            session()->flash('success', 'Welcome to your dashboard, ' . Auth::user()->first_name . '! Here you can manage your daily transactions');
+            return redirect()->route('teller.dashboard');
+        }
         $this->dateRange = [
             'start' => now()->startOfMonth()->format('Y-m-d'),
             'end' => now()->endOfMonth()->format('Y-m-d')

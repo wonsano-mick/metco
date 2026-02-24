@@ -21,7 +21,7 @@
                                     <div class="text-sm text-gray-600">
                                         <i class="fas fa-user mr-1"></i>
                                         Customer: 
-                                        <span class="font-semibold">{{ $account->customer->full_name ?? 'N/A' }}</span>
+                                        <span class="font-semibold">{{ ucwords($account->customer->full_name) ?? 'N/A' }}</span>
                                     </div>
                                     <div class="text-sm text-gray-600">
                                         <i class="fas fa-money-bill-wave mr-1"></i>
@@ -556,11 +556,11 @@
                                                     </span>
                                                 </div>
                                                 @endif
-                                                @if ($transaction->initiator)
+                                                @if ($transaction->initiator) 
                                                 <div class="flex justify-between">
                                                     <span class="text-sm text-gray-500">Initiated By:</span>
                                                     <span class="text-sm text-gray-900">
-                                                        {{ $transaction->initiator->name ?? 'System' }}
+                                                        {{ ucwords($transaction->initiator->first_name) .' '.ucwords($transaction->initiator->last_name) ?? 'System' }}
                                                     </span>
                                                 </div>
                                                 @endif

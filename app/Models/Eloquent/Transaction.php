@@ -191,6 +191,11 @@ class Transaction extends Model
         return (float) $this->amount;
     }
 
+    public function systemLedgerEntries(): HasMany
+    {
+        return $this->hasMany(SystemLedgerEntry::class, 'transaction_id');
+    }
+
     /**
      * Boot the model.
      */

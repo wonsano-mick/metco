@@ -11,10 +11,17 @@
 
                     <!-- Navigation Links -->
                     <div class="ml-10 hidden md:flex space-x-4">
+                        @if(auth()->user()->role === 'teller')
+                        <a href="{{ route('teller.dashboard') }}"
+                            class="{{ request()->routeIs('teller.dashboard') ? 'text-blue-600 border-b-2 border-blue-600' : 'text-gray-700 hover:text-blue-600' }} px-3 py-2 text-sm font-medium">
+                            Dashboard
+                        </a>
+                        @else
                         <a href="{{ route('dashboard') }}"
                             class="{{ request()->routeIs('dashboard') ? 'text-blue-600 border-b-2 border-blue-600' : 'text-gray-700 hover:text-blue-600' }} px-3 py-2 text-sm font-medium">
                             Dashboard
                         </a>
+                        @endif
                         <a href="{{ route('customers.index') }}"
                             class="{{ request()->routeIs('customers.*') ? 'text-green-600 border-b-2 border-green-600' : 'text-gray-700 hover:text-blue-600' }} px-3 py-2 text-sm font-medium">
                             Customers
@@ -35,10 +42,16 @@
                             class="{{ request()->routeIs('reports.*') ? 'text-pink-600 border-b-2 border-pink-800' : 'text-gray-700 hover:text-blue-600' }} px-3 py-2 text-sm font-medium">
                             Reports
                         </a>
+                        @if(auth()->user()->role === 'super-admin' || auth()->user()->role === 'manager')
                         <a href="{{ route('users.index') }}"
                             class="{{ request()->routeIs('users.*') ? 'text-red-600 border-b-2 border-red-400' : 'text-gray-700 hover:text-blue-600' }} px-3 py-2 text-sm font-medium">
-                            User Management
+                            Manage Users
                         </a>
+                        <a href="{{ route('tellers.index') }}"
+                            class="{{ request()->routeIs('tellers.*') ? 'text-purple-600 border-b-2 border-purple-600' : 'text-gray-700 hover:text-blue-600' }} px-3 py-2 text-sm font-medium">
+                            Tellers
+                        </a>
+                        @endif
                     </div>
                 </div>
 

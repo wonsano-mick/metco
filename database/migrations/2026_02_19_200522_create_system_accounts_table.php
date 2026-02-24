@@ -34,7 +34,7 @@ return new class extends Migration
 
             $table->index(['type', 'currency']);
             $table->index('code');
-        });
+        }); 
 
         // Create default system accounts
         DB::table('system_accounts')->insert([

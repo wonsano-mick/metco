@@ -189,7 +189,22 @@ class Customer extends Model
 
     public function getSignatureImageUrlAttribute(): ?string
     {
-        return $this->signature_image_path ? asset('storage/' . $this->signature_image_path) : null;
+        if (!$this->signature_image_path) {
+            return null;
+        }
+
+        // Check if it's already a full URL
+        if (filter_var($this->signature_image_path, FILTER_VALIDATE_URL)) {
+            return $this->signature_image_path;
+        }
+
+        // Make sure the path starts with 'storage/'
+        $path = $this->signature_image_path;
+        if (!str_starts_with($path, 'storage/') && !str_starts_with($path, '/storage/')) {
+            $path = 'storage/' . $path;
+        }
+
+        return asset($path);
     }
 
     public function getAgeAttribute(): ?int

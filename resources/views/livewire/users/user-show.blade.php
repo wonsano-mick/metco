@@ -109,6 +109,8 @@
                                                     \App\Enums\Role::AUDITOR => 'bg-yellow-100 text-yellow-800',
                                                     \App\Enums\Role::CUSTOMER => 'bg-gray-100 text-gray-800',
                                                     \App\Enums\Role::SUPERVISOR => 'bg-gray-100 text-gray-800',
+                                                    \App\Enums\Role::LOAN_OFFICER => 'bg-teal-100 text-teal-800',
+                                                    default => 'bg-gray-100 text-gray-800',
                                                 };
                                             }
                                         @endphp

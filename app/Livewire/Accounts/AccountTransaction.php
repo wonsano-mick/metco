@@ -191,7 +191,7 @@ class AccountTransaction extends Component
     }
 
     #[Layout('layouts.main')]
-    public function render()
+    public function render() 
     {
         return view('livewire.accounts.account-transaction', [
             'canCreate' => Gate::allows('create accounts'),

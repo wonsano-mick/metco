@@ -57,7 +57,7 @@
                             </span>
                         </button>
 
-                        @if ($canCreate)
+                        @if ($canCreate) 
                             <a href="{{ route('accounts.create') }}"
                                 class="inline-flex items-center px-4 py-2.5 bg-gradient-to-r from-blue-600 to-blue-700 border border-transparent rounded-lg shadow-sm text-sm font-medium text-white hover:from-blue-700 hover:to-blue-800 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-all duration-200">
                                 <i class="fas fa-plus mr-2"></i>
