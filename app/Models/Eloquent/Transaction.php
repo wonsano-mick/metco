@@ -2,13 +2,14 @@
 
 namespace App\Models\Eloquent;
 
-use Ramsey\Uuid\Uuid;
 use App\Services\AuditLogService;
-use Illuminate\Support\Facades\Auth;
-use Illuminate\Database\Eloquent\Model;
-use Illuminate\Database\Eloquent\Relations\HasMany;
-use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
+use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\HasOne;
+use Illuminate\Support\Facades\Auth;
+use Ramsey\Uuid\Uuid;
 
 class Transaction extends Model
 {
@@ -78,27 +79,6 @@ class Transaction extends Model
         'cancelled_at' => 'datetime',
         'reversed_at' => 'datetime',
     ];
-    // protected static function boot()
-    // {
-    //     parent::boot();
-
-    //     static::creating(function ($model) {
-    //         if (empty($model->id)) {
-    //             $model->id = Uuid::uuid4()->toString();
-    //         }
-    //         if (empty($model->transaction_reference)) {
-    //             $model->transaction_reference = 'TXN' . time() . mt_rand(1000, 9999);
-    //         }
-    //         if (empty($model->initiated_at)) {
-    //             $model->initiated_at = now();
-    //         }
-    //     });
-    // }
-
-    // public function tenant(): BelongsTo
-    // {
-    //     return $this->belongsTo(Tenant::class);
-    // }
 
     public function initiator(): BelongsTo
     {
@@ -138,6 +118,23 @@ class Transaction extends Model
     public function beneficiary(): BelongsTo
     {
         return $this->belongsTo(Beneficiary::class);
+    }
+
+    public function supervisorApproval(): HasOne
+    {
+        return $this->hasOne(SupervisorApproval::class);
+    }
+
+    public function requiresSupervisorApproval(): bool
+    {
+        return $this->supervisorApproval()->exists();
+    }
+
+    public function isApproved(): bool
+    {
+        return $this->supervisorApproval()
+            ->where('status', 'approved')
+            ->exists();
     }
 
     // Helper methods

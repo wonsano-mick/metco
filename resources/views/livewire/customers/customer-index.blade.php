@@ -368,7 +368,7 @@
                                             </div>
                                             <div class="ml-4">
                                                 <div class="text-sm font-medium text-gray-900">
-                                                    {{ $customer->full_name }}
+                                                    {{ ucwords($customer->full_name) }}
                                                 </div>
                                                 <div class="text-sm text-gray-500 font-mono">
                                                     #{{ $customer->customer_number }}
@@ -427,8 +427,8 @@
                                         </div>
                                         @if ($customer->accounts->count() > 0)
                                             <div class="text-xs text-gray-500">
-                                                Total:
-                                                {{ number_format($customer->accounts->sum('current_balance'), 2) }}
+                                                Avail. Bal:
+                                                {{ number_format($customer->accounts->sum('current_balance') - $customer->accounts->sum('minimum_balance'), 2) }}
                                             </div>
                                         @endif
                                     </td>

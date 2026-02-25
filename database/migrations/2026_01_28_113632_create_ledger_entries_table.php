@@ -15,9 +15,6 @@ return new class extends Migration
             // Primary Key
             $table->id();
 
-            // Tenant Context
-            // $table->foreignId('tenant_id')->nullable()->constrained()->nullOnDelete();
-
             // Foreign Keys
             $table->foreignId('transaction_id')->constrained('transactions')->onDelete('cascade');
             $table->foreignId('account_id')->constrained('accounts')->onDelete('restrict');
@@ -119,8 +116,6 @@ return new class extends Migration
 
             $table->index(['batch_date']);
             $table->index(['status', 'created_at']);
-            // $table->index(['tenant_id', 'batch_date']);
-            // $table->index(['tenant_id', 'status', 'created_at']);
             $table->index(['batch_reference']);
         });
 
@@ -137,15 +132,12 @@ return new class extends Migration
 
             $table->index(['batch_id']);
             $table->index(['ledger_entry_id']);
-            // $table->index(['tenant_id', 'batch_id']);
-            // $table->index(['tenant_id', 'ledger_entry_id']);
             $table->unique(['batch_id', 'ledger_entry_id']);
         });
 
         // Create ledger summary table for reporting
         Schema::create('ledger_summaries', function (Blueprint $table) {
             $table->id();
-            // $table->foreignId('tenant_id')->nullable()->constrained()->nullOnDelete();
             $table->foreignId('account_id')->constrained('accounts')->onDelete('cascade');
             $table->date('summary_date');
             $table->string('period_type')->default('daily'); // daily, weekly, monthly, quarterly, yearly
@@ -190,16 +182,10 @@ return new class extends Migration
             $table->index(['account_id', 'summary_date']);
             $table->index(['summary_date', 'period_type']);
             $table->index(['account_id', 'period_type', 'summary_date']);
-            // $table->unique(['tenant_id', 'account_id', 'summary_date', 'period_type']);
-            // $table->index(['tenant_id', 'account_id', 'summary_date']);
-            // $table->index(['tenant_id', 'summary_date', 'period_type']);
-            // $table->index(['tenant_id', 'account_id', 'period_type', 'summary_date']);
 
             // Compound indexes for reporting
             $table->index(['summary_date', 'is_finalized']);
             $table->index(['account_id', 'is_finalized', 'summary_date']);
-            // $table->index(['tenant_id', 'summary_date', 'is_finalized']);
-            // $table->index(['tenant_id', 'account_id', 'is_finalized', 'summary_date']);
         });
     }
 

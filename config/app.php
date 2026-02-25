@@ -168,6 +168,7 @@ return [
         App\Providers\RepositoryServiceProvider::class,
         App\Providers\DomainServiceProvider::class,
         Barryvdh\DomPDF\ServiceProvider::class,
+        App\Providers\TransactionServiceProvider::class,
     ],
 
     'aliases' => [

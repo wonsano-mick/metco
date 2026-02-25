@@ -13,7 +13,6 @@ return new class extends Migration
     {
         Schema::create('transaction_limits', function (Blueprint $table) {
             $table->id();
-            // $table->foreignId('tenant_id')->nullable()->constrained()->nullOnDelete();
             $table->foreignId('account_type_id')->constrained('account_types')->onDelete('cascade');
 
             // Limit Configuration
@@ -72,14 +71,9 @@ return new class extends Migration
             $table->index(['account_type_id', 'period']);
             $table->index(['is_active', 'transaction_type']);
             $table->index(['account_type_id', 'is_active']);
-            // $table->index(['tenant_id', 'account_type_id', 'transaction_type']);
-            // $table->index(['tenant_id', 'account_type_id', 'period']);
-            // $table->index(['tenant_id', 'is_active', 'transaction_type']);
-            // $table->index(['tenant_id', 'account_type_id', 'is_active']);
 
             // Unique constraint
             $table->unique(
-                // ['tenant_id', 'account_type_id', 'transaction_type', 'period'],
                 ['account_type_id', 'transaction_type', 'period'],
                 'unique_limit_per_account_type_transaction_period'
             );
@@ -88,7 +82,6 @@ return new class extends Migration
         // Create transaction limit overrides table for specific customers/accounts
         Schema::create('trans_limit_over', function (Blueprint $table) {
             $table->id();
-            // $table->foreignId('tenant_id')->nullable()->constrained()->nullOnDelete();
             $table->foreignId('limit_id')->constrained('transaction_limits')->onDelete('cascade');
             $table->morphs('overridable'); // Can be for Account, Customer, or User
 
@@ -129,11 +122,6 @@ return new class extends Migration
             $table->index(['is_active', 'approval_status']);
             $table->index(['effective_from', 'effective_to']);
             $table->index(['overridable_type', 'overridable_id', 'is_active']);
-
-            // $table->index(['tenant_id', 'limit_id', 'overridable_type', 'overridable_id']);
-            // $table->index(['tenant_id', 'is_active', 'approval_status']);
-            // $table->index(['tenant_id', 'effective_from', 'effective_to']);
-            // $table->index(['tenant_id', 'overridable_type', 'overridable_id', 'is_active']);
 
             // Unique constraint
             $table->unique(

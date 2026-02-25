@@ -20,7 +20,7 @@
                         </div>
 
                         <div>
-                            <h2 class="text-2xl font-bold text-gray-800">{{ $customer->full_name }}</h2>
+                            <h2 class="text-2xl font-bold text-gray-800">{{ ucwords($customer->full_name) }}</h2>
                             <div class="flex items-center space-x-4 mt-1">
                                 <p class="text-sm text-gray-600 font-mono">
                                     <i class="fas fa-id-card mr-1"></i>
@@ -434,7 +434,7 @@
                                                             @if ($customer->verified_by)
                                                                 <p class="mt-1">
                                                                     By:
-                                                                    {{ $customer->verifiedBy->full_name ?? 'User ID: ' . $customer->verified_by }}
+                                                                    {{ ucwords($customer->verifiedBy->first_name.' '.$customer->verifiedBy->last_name) ?? 'User ID: ' . $customer->verified_by }}
                                                                 </p>
                                                             @endif
                                                         @endif
@@ -1025,7 +1025,7 @@
             <div class="px-6 py-4 border-t border-gray-200 bg-gray-50">
                 <div class="flex justify-between items-center text-sm text-gray-500">
                     <div>
-                        <p>Customer ID: <span class="font-medium">{{ $customer->id }}</span></p>
+                        <p>Customer ID: <span class="font-medium">{{ $customer->customer_number }}</span></p>
                         <p>Created: <span
                                 class="font-medium">{{ $customer->created_at->format('F d, Y \a\t h:i A') }}</span>
                         </p>
@@ -1035,7 +1035,7 @@
                                 class="font-medium">{{ $customer->updated_at->format('F d, Y \a\t h:i A') }}</span>
                         </p>
                         <p>Created By: <span
-                                class="font-medium">{{ $customer->metadata['created_by'] ?? 'System' }}</span></p>
+                                class="font-medium">{{ ucwords($customer->metadata['created_by']) ?? 'System' }}</span></p>
                     </div>
                 </div>
             </div>

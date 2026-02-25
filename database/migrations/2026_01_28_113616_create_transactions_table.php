@@ -14,10 +14,6 @@ return new class extends Migration
         Schema::create('transactions', function (Blueprint $table) {
             // Primary Key
             $table->id();
-
-            // Tenant Context (for multi-tenancy)
-            // $table->foreignId('tenant_id')->nullable()->constrained()->nullOnDelete();
-
             // Transaction Identification
             $table->string('transaction_reference')->unique()->comment('Unique transaction reference number');
             $table->uuid('external_reference')->nullable()->comment('External system reference');
@@ -132,25 +128,6 @@ return new class extends Migration
             $table->index(['destination_account_id', 'status', 'created_at']);
             $table->index(['initiated_by', 'status', 'created_at']);
 
-            // Indexes for Performance
-            // $table->index(['tenant_id', 'type', 'status']);
-            // $table->index(['tenant_id', 'transaction_reference']);
-            // $table->index(['tenant_id', 'status', 'created_at']);
-            // $table->index(['tenant_id', 'source_account_id', 'created_at']);
-            // $table->index(['tenant_id', 'destination_account_id', 'created_at']);
-            // $table->index(['tenant_id', 'initiated_by', 'created_at']);
-            // $table->index(['tenant_id', 'completed_at']);
-            // $table->index(['tenant_id', 'type', 'status', 'created_at']);
-            // $table->index(['tenant_id', 'category', 'created_at']);
-            // $table->index(['external_reference']);
-            // $table->index(['scheduled_for']);
-            // $table->index(['expires_at']);
-
-            // // Compound indexes for common queries
-            // $table->index(['tenant_id', 'source_account_id', 'status', 'created_at']);
-            // $table->index(['tenant_id', 'destination_account_id', 'status', 'created_at']);
-            // $table->index(['tenant_id', 'initiated_by', 'status', 'created_at']);
-
             // Full-text index for search
             if (config('database.default') === 'mysql') {
                 $table->fullText(['transaction_reference', 'description', 'notes']);
@@ -173,10 +150,8 @@ return new class extends Migration
 
         Schema::create('beneficiary_transactions', function (Blueprint $table) {
             $table->id();
-            // $table->foreignId('tenant_id')->nullable()->constrained()->nullOnDelete();
             $table->foreignId('beneficiary_id')->constrained('beneficiaries')->onDelete('cascade');
             $table->foreignId('transaction_id')->constrained('transactions')->onDelete('cascade');
-            // $table->foreignId('customer_id')->constrained('customers')->onDelete('cascade');
 
             // Transaction Details (denormalized for quick access)
             $table->string('transaction_reference');
@@ -198,14 +173,6 @@ return new class extends Migration
 
             // Unique constraint
             $table->unique(['beneficiary_id', 'transaction_id']);
-
-            // $table->index(['tenant_id', 'beneficiary_id', 'transaction_date']);
-            // $table->index(['tenant_id', 'customer_id', 'beneficiary_id']);
-            // $table->index(['tenant_id', 'transaction_id']);
-            // $table->index(['tenant_id', 'source_account_id', 'transaction_date']);
-
-            // // Unique constraint
-            // $table->unique(['tenant_id', 'beneficiary_id', 'transaction_id']);
 
             $table->timestamps();
         });

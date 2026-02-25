@@ -1786,7 +1786,7 @@
                                 </div>
 
                                 <!-- Supervisor Approval (now part of step 3) -->
-                                <div class="bg-yellow-50 border border-yellow-100 rounded-lg p-4">
+                                {{-- <div class="bg-yellow-50 border border-yellow-100 rounded-lg p-4">
                                     <h3 class="text-lg font-semibold text-yellow-900 mb-4 flex items-center">
                                         <i class="fas fa-user-tie mr-2"></i>
                                         Supervisor Approval
@@ -1824,6 +1824,143 @@
                                             </div>
                                         @endif
                                     </div>
+                                </div> --}}
+
+                                <!-- Supervisor Approval Section with Limit Info -->
+                                <div class="bg-yellow-50 border border-yellow-100 rounded-lg p-4 mb-6">
+                                    <h3 class="text-lg font-semibold text-yellow-900 mb-4 flex items-center">
+                                        <i class="fas fa-user-tie mr-2"></i>
+                                        Supervisor Approval
+                                    </h3>
+
+                                    <!-- Limit Information -->
+                                    @if ($sourceAccountId && $amount)
+                                        <div class="mb-4 grid grid-cols-1 md:grid-cols-3 gap-3">
+                                            <div class="bg-white rounded-md p-3 border border-yellow-200">
+                                                <p class="text-xs text-gray-500">Your Teller Limit</p>
+                                                <p
+                                                    class="text-lg font-bold {{ (float) $amount > $tellerLimit ? 'text-red-600' : 'text-green-600' }}">
+                                                    {{ number_format($tellerLimit, 2) }}
+                                                </p>
+                                            </div>
+                                            <div class="bg-white rounded-md p-3 border border-yellow-200">
+                                                <p class="text-xs text-gray-500">Transaction Amount</p>
+                                                <p
+                                                    class="text-lg font-bold {{ (float) $amount > $tellerLimit ? 'text-red-600' : 'text-green-600' }}">
+                                                    {{ number_format($amount, 2) }} {{ $currency }}
+                                                </p>
+                                            </div>
+                                            <div class="bg-white rounded-md p-3 border border-yellow-200">
+                                                <p class="text-xs text-gray-500">Status</p>
+                                                @if ($requiresSupervisorApproval)
+                                                    <p class="text-sm font-medium text-red-600">
+                                                        <i class="fas fa-exclamation-triangle mr-1"></i>
+                                                        Supervisor Required
+                                                    </p>
+                                                @else
+                                                    <p class="text-sm font-medium text-green-600">
+                                                        <i class="fas fa-check-circle mr-1"></i>
+                                                        Within Limits
+                                                    </p>
+                                                @endif
+                                            </div>
+                                        </div>
+
+                                        <!-- Limit Violations -->
+                                        @if (count($limitViolations) > 0)
+                                            <div class="mb-4 bg-red-50 border border-red-200 rounded-md p-3">
+                                                <h4 class="text-sm font-medium text-red-800 mb-2">Limit Violations:
+                                                </h4>
+                                                <ul class="list-disc list-inside text-sm text-red-700 space-y-1">
+                                                    @foreach ($limitViolations as $violation)
+                                                        <li>{{ $violation['reason'] }}</li>
+                                                    @endforeach
+                                                </ul>
+                                            </div>
+                                        @endif
+                                    @endif
+
+                                    <!-- Supervisor Approval Checkbox (Auto-checked if limit exceeded) -->
+                                    <div class="flex items-center mb-4">
+                                        <input type="checkbox" wire:model.live="supervisorApproval"
+                                            id="supervisorApproval"
+                                            {{ $requiresSupervisorApproval ? 'checked disabled' : '' }}
+                                            class="h-4 w-4 text-yellow-600 focus:ring-yellow-500 border-gray-300 rounded {{ $requiresSupervisorApproval ? 'opacity-50' : '' }}">
+                                        <label for="supervisorApproval" class="ml-2 block text-sm text-gray-900">
+                                            This transaction requires supervisor approval
+                                            @if ($supervisorApprovalReason)
+                                                <span class="text-xs text-red-600 block mt-1">
+                                                    <i class="fas fa-info-circle mr-1"></i>
+                                                    {{ $supervisorApprovalReason }}
+                                                </span>
+                                            @endif
+                                        </label>
+                                    </div>
+
+                                    <!-- Supervisor Selection -->
+                                    @if ($supervisorApproval || $requiresSupervisorApproval)
+                                        <div class="space-y-4">
+                                            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                                <div>
+                                                    <label for="supervisorId"
+                                                        class="block text-sm font-medium text-gray-700">
+                                                        Select Supervisor <span class="text-red-500">*</span>
+                                                    </label>
+                                                    <select wire:model="supervisorId" id="supervisorId"
+                                                        class="mt-1 block w-full pl-3 pr-10 py-2 text-base border-gray-300 focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm rounded-md">
+                                                        <option value="">Select Supervisor</option>
+                                                        @foreach ($this->availableSupervisors as $supervisor)
+                                                            <option value="{{ $supervisor->id }}">
+                                                                {{ $supervisor->name }}
+                                                                ({{ ucfirst($supervisor->role) }})
+                                                            </option>
+                                                        @endforeach
+                                                    </select>
+                                                    @error('supervisorId')
+                                                        <p class="mt-1 text-sm text-red-600">{{ $message }}</p>
+                                                    @enderror
+                                                </div>
+
+                                                @if ($supervisorId)
+                                                    <div>
+                                                        <label for="supervisorPassword"
+                                                            class="block text-sm font-medium text-gray-700">
+                                                            Supervisor Password <span class="text-red-500">*</span>
+                                                        </label>
+                                                        <input type="password" wire:model="supervisorPassword"
+                                                            id="supervisorPassword"
+                                                            class="mt-1 focus:ring-blue-500 focus:border-blue-500 block w-full shadow-sm sm:text-sm border-gray-300 rounded-md"
+                                                            placeholder="Enter supervisor password">
+                                                        @error('supervisorPassword')
+                                                            <p class="mt-1 text-sm text-red-600">{{ $message }}</p>
+                                                        @enderror
+                                                    </div>
+                                                @endif
+                                            </div>
+
+                                            <!-- Auto-assignment info -->
+                                            @if ($requiresSupervisorApproval && $supervisorId && !$supervisorPassword)
+                                                <div class="bg-blue-50 border border-blue-200 rounded-md p-3">
+                                                    <p class="text-sm text-blue-700">
+                                                        <i class="fas fa-info-circle mr-1"></i>
+                                                        A supervisor has been automatically assigned. Please have them
+                                                        enter their password to approve this transaction.
+                                                    </p>
+                                                </div>
+                                            @endif
+
+                                            <!-- Supervisor Approval Notes -->
+                                            <div>
+                                                <label for="supervisorApprovalNotes"
+                                                    class="block text-sm font-medium text-gray-700">
+                                                    Approval Notes (Optional)
+                                                </label>
+                                                <textarea wire:model="supervisorApprovalNotes" id="supervisorApprovalNotes" rows="2"
+                                                    class="mt-1 focus:ring-blue-500 focus:border-blue-500 block w-full shadow-sm sm:text-sm border-gray-300 rounded-md"
+                                                    placeholder="Any notes from supervisor regarding this approval"></textarea>
+                                            </div>
+                                        </div>
+                                    @endif
                                 </div>
 
                                 <!-- Receipt Options (now part of step 3) -->

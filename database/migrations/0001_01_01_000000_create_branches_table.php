@@ -10,7 +10,6 @@ return new class extends Migration
     {
         Schema::create('branches', function (Blueprint $table) {
             $table->id();
-            // $table->uuid('tenant_id')->nullable();
             $table->string('name');
             $table->string('code')->unique();
             $table->string('email')->nullable();
@@ -20,7 +19,6 @@ return new class extends Migration
             $table->string('state')->nullable();
             $table->string('zip_code')->nullable();
             $table->string('country')->nullable();
-            // $table->foreignId('user_id')->nullable()->nullOnDelete();
             $table->decimal('latitude', 10, 8)->nullable();
             $table->decimal('longitude', 11, 8)->nullable();
             $table->time('opening_time')->nullable();
@@ -30,9 +28,6 @@ return new class extends Migration
             $table->timestamps();
             $table->softDeletes();
 
-            // $table->foreign('tenant_id')->nullable()->constrained('tenants')->nullOnDelete();
-
-            // $table->index(['tenant_id', 'status']);
             $table->index(['status']);
         });
     }

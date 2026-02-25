@@ -376,7 +376,7 @@
                                             <div class="text-xs text-gray-500 mt-1">
                                                 <span class="inline-flex items-center">
                                                     <i class="fas fa-check-circle text-green-500 mr-1 text-xs"></i>
-                                                    Available: {{ number_format($account->available_balance, 2) }}
+                                                    Available: {{ number_format($account->current_balance - $account->minimum_balance, 2) }}
                                                 </span>
                                             </div>
                                             <div class="text-xs text-gray-400 mt-0.5">

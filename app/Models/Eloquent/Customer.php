@@ -2,6 +2,8 @@
 
 namespace App\Models\Eloquent;
 
+use App\Models\Eloquent\User as EloquentUser;
+use App\Models\User;
 use Ramsey\Uuid\Uuid;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Database\Eloquent\Model;
@@ -148,6 +150,10 @@ class Customer extends Model
     public function relationshipManager(): BelongsTo
     {
         return $this->belongsTo(User::class, 'relationship_manager_id');
+    }
+
+    public function verifiedBy(){
+        return $this->belongsTo(EloquentUser::class, 'verified_by');
     }
 
     public function accounts(): HasMany

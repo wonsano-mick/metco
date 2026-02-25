@@ -77,37 +77,37 @@ class Dashboard extends Component
         // Calculate stats
         $this->stats = [
             'total_balance' => [
-                'value' => number_format($accountsQuery->sum('current_balance'), 2),
+                'value' => 'GH₵'.number_format($accountsQuery->sum('current_balance'), 2),
                 'change' => '+12.5%',
-                'icon' => 'currency-dollar',
+                'icon' => 'M4 6a2 2 0 012-2h12a2 2 0 012 2v12a2 2 0 01-2 2H6a2 2 0 01-2-2V6z M8 4v2 M16 4v2 M4 9h16 M4 15h16 M12 9v8 M9 12h6 M16 18h2 M6 18h2',
                 'color' => 'green',
                 'label' => 'Total Balance'
             ],
             'total_customers' => [
                 'value' => $customersQuery->count(),
                 'change' => '+8.2%',
-                'icon' => 'users',
+                'icon' => 'M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z',
                 'color' => 'blue',
                 'label' => 'Total Customers'
             ],
             'transactions_today' => [
                 'value' => $transactionsQuery->whereDate('created_at', today())->count(),
                 'change' => '+15.3%',
-                'icon' => 'arrow-right-left',
+                'icon' => 'M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01',
                 'color' => 'purple',
                 'label' => 'Today\'s Transactions'
             ],
             'pending_loans' => [
                 'value' => $loansQuery->where('status', 'pending')->count(),
                 'change' => '-3.1%',
-                'icon' => 'document-text',
+                'icon' => 'M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z M12 6v2',
                 'color' => 'yellow',
                 'label' => 'Pending Loans'
             ],
             'active_accounts' => [
                 'value' => $accountsQuery->where('status', 'active')->count(),
                 'change' => '+5.7%',
-                'icon' => 'credit-card',
+                'icon' => 'M5 13l4 4L19 7 M16 21v-2a4 4 0 00-4-4H6a4 4 0 00-4 4v2',
                 'color' => 'indigo',
                 'label' => 'Active Accounts'
             ],
@@ -117,7 +117,7 @@ class Dashboard extends Component
                     fn($q) => $q->where('branch_id', $branchId)
                 )->count(),
                 'change' => '+22.4%',
-                'icon' => 'shield-check',
+                'icon' => 'M9 12h6m-6 4h6m2-10h2a2 2 0 012 2v12a2 2 0 01-2 2H7a2 2 0 01-2-2V8a2 2 0 012-2h2m2-2h4a1 1 0 010 2h-4a1 1 0 010-2z M12 8v4',
                 'color' => 'red',
                 'label' => 'KYC Pending'
             ]
@@ -126,9 +126,9 @@ class Dashboard extends Component
         // Role-specific stats
         if ($user->role === 'manager') {
             $this->stats['branch_performance'] = [
-                'value' => '₦' . number_format($transactionsQuery->sum('amount'), 2),
+                'value' => 'GH₵' . number_format($transactionsQuery->sum('amount'), 2),
                 'change' => '+18.2%',
-                'icon' => 'chart-bar',
+                'icon' => 'M19 21H5a2 2 0 01-2-2V5a2 2 0 012-2h11l5 5v11a2 2 0 01-2 2z M17 21v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4 M14 3v4a2 2 0 002 2h4 M9 11h6 M9 15h4',
                 'color' => 'teal',
                 'label' => 'Branch Performance'
             ];
@@ -138,7 +138,7 @@ class Dashboard extends Component
             $this->stats['total_branches'] = [
                 'value' => \App\Models\Eloquent\Branch::count(),
                 'change' => '+2.3%',
-                'icon' => 'building-office',
+                'icon' => 'M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4',
                 'color' => 'pink',
                 'label' => 'Total Branches'
             ];

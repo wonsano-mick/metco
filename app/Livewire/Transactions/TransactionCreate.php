@@ -2,18 +2,18 @@
 
 namespace App\Livewire\Transactions;
 
-use Livewire\Component;
-use Livewire\Attributes\Layout;
 use App\Models\Eloquent\Account;
-use App\Models\Eloquent\Customer;
-use Livewire\Attributes\Validate;
-use Illuminate\Support\Facades\Log;
 use App\Models\Eloquent\Beneficiary;
+use App\Models\Eloquent\Customer;
 use App\Models\Eloquent\Transaction;
+use App\Models\Eloquent\TransactionLimit;
+use App\Models\Eloquent\User;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Gate;
-use App\Models\Eloquent\TransactionLimit;
-use App\Services\Transaction\EnhancedTransactionService;
+use Illuminate\Support\Facades\Log;
+use Livewire\Attributes\Layout;
+use Livewire\Attributes\Validate;
+use Livewire\Component;
 
 class TransactionCreate extends Component
 {
@@ -152,6 +152,31 @@ class TransactionCreate extends Component
     public $selectedCustomer = null;
     public $selectedAccount = null;
 
+    /**
+     * Teller limit configuration
+     */
+    public $tellerLimit = 0;
+    public $exceedsTellerLimit = false;
+    public $requiresSupervisorApproval = false;
+    public $supervisorApprovalReason = null;
+    public $tellerTransactionLimits = [];
+    public $supervisorOverride = false;
+
+    /**
+     * Transaction limit check results
+     */
+    public $limitCheckResults = [];
+    public $limitViolations = [];
+
+    /**
+     * Supervisor approval tracking
+     */
+    public $supervisorApprovalRequired = false;
+    public $supervisorApprovalStatus = 'pending'; // pending, approved, rejected
+    public $supervisorApprovalNotes = '';
+    public $supervisorApprovedAt = null;
+    public $supervisorApprovedBy = null;
+
     // Flag to check if initial deposit is done
     public $hasInitialDeposit = false;
 
@@ -255,6 +280,7 @@ class TransactionCreate extends Component
         }
 
         $this->loadInitialData();
+        $this->loadTellerLimits();
 
         // Set default teller as current user
         $this->tellerId = Auth::id();
@@ -349,6 +375,480 @@ class TransactionCreate extends Component
         }
     }
 
+    /**
+     * Load teller limits based on user role and account type
+     */
+    private function loadTellerLimits()
+    {
+        $user = Auth::user();
+
+        // Get teller's default limit from user settings or configuration
+        // This can be stored in user profile, role-based settings, or configuration
+        $this->tellerLimit = $this->getTellerLimitForUser($user);
+
+        // Load transaction limits from database for all account types
+        $this->tellerTransactionLimits = TransactionLimit::where('is_active', true)
+            ->with('accountType')
+            ->get()
+            ->groupBy('account_type_id')
+            ->toArray();
+    }
+
+    /**
+     * Get teller limit for user (can be customized based on role, experience, etc.)
+     */
+    private function getTellerLimitForUser($user)
+    {
+        // Default teller limit
+        $defaultLimit = 10000;
+
+        if (!$user) {
+            return $defaultLimit;
+        }
+
+        // Check if user has a custom limit in their profile
+        if (isset($user->teller_limit) && $user->teller_limit > 0) {
+            return $user->teller_limit;
+        }
+
+        // Set limits based on role
+        switch ($user->role) {
+            case 'supervisor':
+            case 'manager':
+                return 50000; // Higher limit for supervisors
+            case 'senior_teller':
+                return 25000; // Higher limit for senior tellers
+            case 'teller':
+                return $defaultLimit;
+            default:
+                return $defaultLimit;
+        }
+    }
+
+    /**
+     * Check if transaction exceeds teller limit
+     */
+    private function checkTellerLimit()
+    {
+        if (!$this->amount || !is_numeric($this->amount)) {
+            $this->exceedsTellerLimit = false;
+            $this->requiresSupervisorApproval = false;
+            return;
+        }
+
+        $amount = (float) $this->amount;
+
+        // Reset violations array
+        $this->limitViolations = [];
+        $this->requiresSupervisorApproval = false;
+
+        // Check if amount exceeds teller's personal limit
+        if ($amount >= $this->tellerLimit) {
+            $this->exceedsTellerLimit = true;
+            $this->requiresSupervisorApproval = true;
+            $this->supervisorApprovalReason = "Amount (" . number_format($amount, 2) . ") exceeds teller limit of " . number_format($this->tellerLimit, 2);
+
+            $this->limitViolations[] = [
+                'type' => 'teller_limit',
+                'reason' => $this->supervisorApprovalReason,
+                'limit' => $this->tellerLimit,
+                'amount' => $amount
+            ];
+
+            // Don't return here - check other limits too
+        }
+
+        // Check transaction type specific limits from database
+        if ($this->sourceAccountId) {
+            $account = Account::with('accountType')->find($this->sourceAccountId);
+            if ($account && $account->accountType) {
+                $limitCheck = $this->checkTransactionTypeLimit($account->accountType->id, $amount);
+
+                if ($limitCheck['exceeds_limit']) {
+                    $this->requiresSupervisorApproval = true;
+                    $this->exceedsTellerLimit = true;
+                    $this->supervisorApprovalReason = $limitCheck['reason'];
+                    $this->limitViolations[] = $limitCheck;
+                }
+            }
+        }
+
+        // Check daily aggregate limits
+        if ($this->sourceAccountId) {
+            $dailyLimitCheck = $this->checkDailyAggregateLimit();
+            if ($dailyLimitCheck['exceeds_limit']) {
+                $this->requiresSupervisorApproval = true;
+                $this->exceedsTellerLimit = true;
+                $this->supervisorApprovalReason = $dailyLimitCheck['reason'];
+                $this->limitViolations[] = $dailyLimitCheck;
+            }
+        }
+    }
+
+    /**
+     * Check transaction type specific limits
+     */
+    private function checkTransactionTypeLimit($accountTypeId, $amount)
+    {
+        $result = [
+            'exceeds_limit' => false,
+            'reason' => null,
+            'limit_type' => null,
+            'max_allowed' => null,
+        ];
+
+        // Find limits for this account type and transaction type
+        $limits = TransactionLimit::where('account_type_id', $accountTypeId)
+            ->where('transaction_type', $this->transactionType)
+            ->where('period', 'per_transaction')
+            ->where('is_active', true)
+            ->first();
+
+        if ($limits && $limits->max_amount && $amount > $limits->max_amount) {
+            $result['exceeds_limit'] = true;
+            $result['reason'] = "Amount ({$amount}) exceeds per-transaction limit of {$limits->max_amount} for {$this->transactionType}";
+            $result['limit_type'] = 'per_transaction';
+            $result['max_allowed'] = $limits->max_amount;
+            $result['limit_id'] = $limits->id;
+        }
+
+        return $result;
+    }
+
+    /**
+     * Check daily aggregate limits for the teller
+     */
+    private function checkDailyAggregateLimit()
+    {
+        $result = [
+            'exceeds_limit' => false,
+            'reason' => null,
+            'limit_type' => 'daily',
+            'current_daily_total' => 0,
+            'daily_limit' => 0,
+        ];
+
+        $user = Auth::user();
+
+        // Calculate today's total transaction amount by this teller
+        $todayTotal = Transaction::where('initiated_by', $user->id)
+            ->whereDate('created_at', today())
+            ->whereIn('status', ['completed', 'pending'])
+            ->sum('amount');
+
+        // Add current transaction amount
+        $newTotal = $todayTotal + (float) $this->amount;
+
+        // Get daily limit from transaction limits or user profile
+        $dailyLimit = $this->getDailyLimitForTeller($user);
+
+        if ($newTotal > $dailyLimit) {
+            $result['exceeds_limit'] = true;
+            $result['reason'] = "Daily transaction total ({$newTotal}) exceeds daily limit of {$dailyLimit}";
+            $result['current_daily_total'] = $todayTotal;
+            $result['daily_limit'] = $dailyLimit;
+        }
+
+        return $result;
+    }
+
+    /**
+     * Get daily limit for teller
+     */
+    private function getDailyLimitForTeller($user)
+    {
+        // Default daily limit
+        $defaultDailyLimit = 50000;
+
+        // Check if user has custom daily limit
+        if (isset($user->daily_teller_limit) && $user->daily_teller_limit > 0) {
+            return (float) $user->daily_teller_limit;
+        }
+
+        // Set based on role
+        switch ($user->role) {
+            case 'supervisor':
+            case 'manager':
+                return 200000.00;
+            case 'senior_teller':
+                return 100000.00;
+            case 'teller':
+                return $defaultDailyLimit;
+            default:
+                return $defaultDailyLimit;
+        }
+    }
+    /**
+     * Get available supervisors for approval
+     */
+    public function getAvailableSupervisorsProperty()
+    {
+        $user = Auth::user();
+
+        if (!$user || !$user->branch_id) {
+            return collect();
+        }
+
+        return User::where('branch_id', $user->branch_id)
+            ->whereIn('role', ['supervisor', 'manager'])
+            ->where('status', 'active')
+            ->where('id', '!=', $user->id) // Exclude current user
+            ->get();
+    }
+
+    /**
+     * Auto-assign supervisor when limit is exceeded
+     */
+    private function autoAssignSupervisor()
+    {
+        if (!$this->requiresSupervisorApproval) {
+            return;
+        }
+
+        // Get available supervisors
+        $supervisors = $this->getAvailableSupervisorsProperty();
+
+        if ($supervisors->isNotEmpty()) {
+            // Auto-select first available supervisor
+            $this->supervisorId = $supervisors->first()->id;
+
+            // Also set supervisorApproval to true for UI
+            $this->supervisorApproval = true;
+
+            // Log auto-assignment with correct amount
+            Log::info('Supervisor auto-assigned for transaction exceeding limit', [
+                'teller_id' => Auth::id(),
+                'amount' => $this->amount,
+                'supervisor_id' => $this->supervisorId,
+                'reason' => $this->supervisorApprovalReason
+            ]);
+        }
+    }
+    /**
+     * Validate supervisor approval
+     */
+    private function validateSupervisorApproval()
+    {
+        if (!$this->requiresSupervisorApproval) {
+            return true;
+        }
+
+        // Check if supervisor is selected
+        if (!$this->supervisorId) {
+            $this->addError('supervisorId', 'Supervisor approval is required for this transaction. Please select a supervisor.');
+            return false;
+        }
+
+        // Verify supervisor exists and is active
+        $supervisor = User::find($this->supervisorId);
+        if (!$supervisor || $supervisor->status !== 'active') {
+            $this->addError('supervisorId', 'Selected supervisor is not available.');
+            return false;
+        }
+
+        // Verify supervisor is from same branch
+        if ($supervisor->branch_id !== Auth::user()->branch_id) {
+            $this->addError('supervisorId', 'Supervisor must be from the same branch.');
+            return false;
+        }
+
+        return true;
+    }
+
+    /**
+     * Verify supervisor password
+     */
+    public function verifySupervisorPassword()
+    {
+        if (!$this->requiresSupervisorApproval || !$this->supervisorId) {
+            return true;
+        }
+
+        if (empty($this->supervisorPassword)) {
+            $this->addError('supervisorPassword', 'Supervisor password is required.');
+            return false;
+        }
+
+        $supervisor = User::find($this->supervisorId);
+
+        if (!$supervisor || !\Illuminate\Support\Facades\Hash::check($this->supervisorPassword, $supervisor->password)) {
+            $this->addError('supervisorPassword', 'Invalid supervisor password.');
+            return false;
+        }
+
+        // Record approval
+        $this->supervisorApprovalStatus = 'approved';
+        $this->supervisorApprovedAt = now();
+        $this->supervisorApprovedBy = $supervisor->id;
+
+        return true;
+    }
+
+    /**
+     * Updated amount handler with limit checking
+     */
+    public function updatedAmount($value)
+    {
+        try {
+            // Ensure value is numeric before processing
+            $value = (float) $value;
+
+            $this->amount = $value;
+            $this->validateAmount();
+
+            // Check teller limits
+            $this->checkTellerLimit();
+
+            // Auto-assign supervisor if needed
+            if ($this->requiresSupervisorApproval) {
+                $this->autoAssignSupervisor();
+                session()->flash('info', 'This transaction requires supervisor approval as it exceeds teller limits.');
+            }
+
+            // Auto-calculate cash denominations for cash transactions
+            if (
+                in_array($this->transactionType, ['withdrawal', 'cash_deposit']) &&
+                $this->cashHandlingMethod === 'cash' &&
+                is_numeric($value) && $value > 0
+            ) {
+                $this->calculateCashDenominations($value);
+            }
+        } catch (\Exception $e) {
+            Log::error('Error in updatedAmount', [
+                'message' => $e->getMessage(),
+                'trace' => $e->getTraceAsString(),
+                'amount' => $value,
+                'transaction_type' => $this->transactionType
+            ]);
+
+            // Re-throw to see the error in Laravel log
+            throw $e;
+        }
+    }
+
+    /**
+     * Updated source account handler with limit loading
+     */
+    public function updatedSourceAccountId($value)
+    {
+        if ($value) {
+            $account = Account::with(['accountType'])->find($value);
+            if ($account) {
+                $this->accountBalance = $account->current_balance;
+                $this->availableBalance = $account->available_balance;
+                $this->currency = $account->currency;
+
+                // Check if initial deposit has been done
+                $this->hasInitialDeposit = $this->checkInitialDeposit($value);
+
+                // Load transaction limits from database
+                $this->loadTransactionLimitsFromDb($account);
+
+                // Re-check teller limits with new account info
+                if ($this->amount) {
+                    $this->checkTellerLimit();
+                }
+
+                // Dispatch event to focus on amount field
+                $this->dispatch('account-selected');
+            }
+        }
+    }
+
+    /**
+     * Load transaction limits from database
+     */
+    private function loadTransactionLimitsFromDb($account)
+    {
+        if (!$account || !$account->accountType) {
+            $this->limits = [];
+            return;
+        }
+
+        $this->limits = TransactionLimit::where('account_type_id', $account->account_type_id)
+            ->where('is_active', true)
+            ->get()
+            ->mapWithKeys(function ($limit) {
+                return [
+                    $limit->period => [
+                        'max_amount' => $limit->max_amount,
+                        'max_count' => $limit->max_count,
+                        'id' => $limit->id,
+                        'transaction_type' => $limit->transaction_type,
+                    ]
+                ];
+            })
+            ->toArray();
+
+        // Also load for specific transaction type
+        $typeLimits = TransactionLimit::where('account_type_id', $account->account_type_id)
+            ->where('transaction_type', $this->transactionType)
+            ->where('period', 'per_transaction')
+            ->where('is_active', true)
+            ->first();
+
+        if ($typeLimits) {
+            $this->limits['per_transaction_type'] = [
+                'max_amount' => $typeLimits->max_amount,
+                'max_count' => $typeLimits->max_count,
+                'id' => $typeLimits->id,
+            ];
+        }
+    }
+
+    /**
+     * Updated transaction type handler
+     */
+    public function updatedTransactionType($value)
+    {
+        $this->reset([
+            'destinationAccountId',
+            'beneficiaryId',
+            'beneficiaryType',
+            'cashHandlingMethod',
+            'cashReferenceNumber',
+            'chequeNumber',
+            'drawerBank',
+            'loanAccountNumber',
+            'feeType',
+            'feeDescription',
+            'adjustmentType',
+            'adjustmentReason',
+            'billType',
+            'billAccountNumber',
+        ]);
+
+        // Reset supervisor approval flags when changing transaction type
+        $this->requiresSupervisorApproval = false;
+        $this->exceedsTellerLimit = false;
+        $this->supervisorApprovalReason = null;
+        $this->limitViolations = [];
+
+        // Show beneficiary section for transfers and bill payments
+        if (in_array($value, ['transfer', 'bill_payment'])) {
+            $this->showBeneficiarySection = true;
+        } else {
+            $this->showBeneficiarySection = false;
+        }
+
+        // Reset transaction purpose for withdrawals
+        if ($value === 'withdrawal') {
+            $this->transactionPurpose = '';
+        }
+
+        // Set default description based on type
+        $this->updateDescription();
+
+        // Clear validation errors
+        $this->resetErrorBag();
+
+        // Re-check limits if amount is set
+        if ($this->amount && $this->sourceAccountId) {
+            $this->checkTellerLimit();
+        }
+    }
+
+
     // Updated account search method
     public function updatedAccountSearch($value)
     {
@@ -367,81 +867,7 @@ class TransactionCreate extends Component
         $this->isSearching = false;
     }
 
-    // Select account method - AUTO SELECTS THE ACCOUNT
-    // public function selectAccount($accountId)
-    // {
-    //     $account = Account::with(['customer', 'accountType'])->find($accountId);
-
-    //     if ($account && $account->customer) {
-    //         $customer = $account->customer;
-
-    //         // Set customer ID
-    //         $this->customerId = $customer->id;
-
-    //         // Set source account ID
-    //         $this->sourceAccountId = $account->id;
-    //         $this->selectedAccount = $account;
-
-    //         // Update account search display
-    //         $this->accountSearch = $account->account_number . ' - ' . $customer->full_name;
-
-    //         // Store selected customer data
-    //         $this->selectedCustomer = [
-    //             'id' => $customer->id,
-    //             'full_name' => $customer->full_name,
-    //             'customer_number' => $customer->customer_number,
-    //             'email' => $customer->email,
-    //             'phone' => $customer->phone,
-    //             'id_number' => $customer->id_number,
-    //             'profile_photo_url' => $customer->profile_photo_url ?? $this->getDefaultProfilePhoto($customer->full_name),
-    //             'signature_url' => $customer->signature_image_url,
-    //             'signature_image_path' => $customer->signature_image_path,
-    //             'kyc_status' => $customer->kyc_status,
-    //             'accounts' => $customer->accounts->map(function ($acc) {
-    //                 return [
-    //                     'id' => $acc->id,
-    //                     'account_number' => $acc->account_number,
-    //                     'current_balance' => $acc->current_balance,
-    //                     'available_balance' => $acc->available_balance,
-    //                     'currency' => $acc->currency,
-    //                     'status' => $acc->status,
-    //                     'account_type' => $acc->accountType ? [
-    //                         'name' => $acc->accountType->name,
-    //                     ] : null,
-    //                 ];
-    //             })->toArray(),
-    //         ];
-
-    //         // Check if initial deposit has been done for this account
-    //         $this->hasInitialDeposit = $this->checkInitialDeposit($account->id);
-
-    //         // Load customer accounts for selection
-    //         $this->customerAccounts = $customer->accounts()
-    //             ->where('status', 'active')
-    //             ->with(['accountType'])
-    //             ->get();
-
-    //         // Load customer beneficiaries
-    //         $this->beneficiaries = $customer->beneficiaries()
-    //             ->where('is_active', true)
-    //             ->get();
-
-    //         // Set customer contact info for receipts
-    //         $this->customerEmail = $customer->email;
-    //         $this->customerPhone = $customer->phone;
-
-    //         // Reset other fields
-    //         $this->reset(['destinationAccountId', 'amount', 'transactionInitiator']);
-    //         $this->updateAvailableBalance();
-
-    //         // Close search results
-    //         $this->closeSearchResults();
-
-    //         // Dispatch event to focus on amount field
-    //         $this->dispatch('account-selected');
-    //     }
-    // }
-
+    // Select account method - AUTO SELECTS THE ACCOUNT IF EXACT MATCH IS FOUND, OTHERWISE SHOWS SEARCH RESULTS
     public function selectAccount($accountId)
     {
         $account = Account::with(['customer', 'accountType'])->find($accountId);
@@ -485,15 +911,6 @@ class TransactionCreate extends Component
                     ];
                 })->toArray(),
             ];
-
-            // Debug: Log what we just set
-            Log::info('Selected customer data:', [
-                'customer_id' => $customer->id,
-                'signature_url' => $customer->signature_image_url,
-                'signature_path' => $customer->signature_image_path,
-                'selectedCustomer_signature_url' => $this->selectedCustomer['signature_url'] ?? null,
-                'selectedCustomer_signature_path' => $this->selectedCustomer['signature_path'] ?? null,
-            ]);
 
             // Check if initial deposit has been done for this account
             $this->hasInitialDeposit = $this->checkInitialDeposit($account->id);
@@ -614,65 +1031,6 @@ class TransactionCreate extends Component
         }
     }
 
-    public function updatedSourceAccountId($value)
-    {
-        if ($value) {
-            $account = Account::with(['accountType'])->find($value);
-            if ($account) {
-                $this->accountBalance = $account->current_balance;
-                $this->availableBalance = $account->available_balance;
-                $this->currency = $account->currency;
-
-                // Check if initial deposit has been done
-                $this->hasInitialDeposit = $this->checkInitialDeposit($value);
-
-                // Load transaction limits
-                $this->loadTransactionLimits();
-
-                // Dispatch event to focus on amount field
-                $this->dispatch('account-selected');
-            }
-        }
-    }
-
-    public function updatedTransactionType($value)
-    {
-        $this->reset([
-            'destinationAccountId',
-            'beneficiaryId',
-            'beneficiaryType',
-            'cashHandlingMethod',
-            'cashReferenceNumber',
-            'chequeNumber',
-            'drawerBank',
-            'loanAccountNumber',
-            'feeType',
-            'feeDescription',
-            'adjustmentType',
-            'adjustmentReason',
-            'billType',
-            'billAccountNumber',
-        ]);
-
-        // Show beneficiary section for transfers and bill payments
-        if (in_array($value, ['transfer', 'bill_payment'])) {
-            $this->showBeneficiarySection = true;
-        } else {
-            $this->showBeneficiarySection = false;
-        }
-
-        // Reset transaction purpose for withdrawals
-        if ($value === 'withdrawal') {
-            $this->transactionPurpose = '';
-        }
-
-        // Set default description based on type
-        $this->updateDescription();
-
-        // Clear validation errors
-        $this->resetErrorBag();
-    }
-
     private function initializeCashDenominations()
     {
         $this->cashDenominations = [
@@ -690,23 +1048,6 @@ class TransactionCreate extends Component
             ['denomination' => 0.05, 'count' => 0],
             ['denomination' => 0.01, 'count' => 0],
         ];
-    }
-
-    public function updatedAmount($value)
-    {
-        // Ensure value is numeric before processing
-        $value = (float) $value;
-
-        $this->validateAmount();
-
-        // Auto-calculate cash denominations for cash transactions
-        if (
-            in_array($this->transactionType, ['withdrawal', 'cash_deposit']) &&
-            $this->cashHandlingMethod === 'cash' &&
-            is_numeric($value) && $value > 0
-        ) {
-            $this->calculateCashDenominations($value);
-        }
     }
 
     // MANUAL DENOMINATION UPDATE - ALLOW TELLER TO ADJUST COUNTS
@@ -840,20 +1181,37 @@ class TransactionCreate extends Component
         }
     }
 
+    /**
+     * Override the nextStep method to include supervisor validation
+     */
     public function nextStep()
     {
         // Validate current step before moving forward
         if (!$this->validateCurrentStep()) {
-            // Show error message if validation fails
             session()->flash('error', 'Please fill in all required fields correctly.');
-            return redirect()->route('transactions.index');
+            return;
+        }
+
+        // Special validation for step 1 to check supervisor approval requirement
+        if ($this->step === 1) {
+            // Re-check teller limits to ensure they're up to date
+            $this->checkTellerLimit();
+
+            // If transaction requires supervisor approval, ensure supervisor is selected
+            if ($this->requiresSupervisorApproval) {
+                if (!$this->validateSupervisorApproval()) {
+                    return;
+                }
+            }
         }
 
         if ($this->step < $this->totalSteps) {
             $this->step++;
 
-            // Auto supervisor approval when amount hits limit
-            $this->checkAutoSupervisorApproval();
+            // If moving to step 3 (verification), show supervisor section if required
+            if ($this->step === 3 && $this->requiresSupervisorApproval) {
+                $this->supervisorApproval = true;
+            }
 
             // If moving to step 4 (final review)
             if ($this->step === 4) {
@@ -870,6 +1228,7 @@ class TransactionCreate extends Component
             }
         }
     }
+
 
     // AUTO SUPERVISOR APPROVAL WHEN AMOUNT HITS TRANSACTION LIMIT
     private function checkAutoSupervisorApproval()
@@ -1094,98 +1453,17 @@ class TransactionCreate extends Component
         return number_format($total, 2);
     }
 
-    //     private function prepareTransactionPreview()
-    // {
-    //     $customer = Customer::find($this->customerId);
-    //     $sourceAccount = Account::find($this->sourceAccountId);
-    //     $destinationAccount = $this->destinationAccountId ? Account::find($this->destinationAccountId) : null;
-    //     $beneficiary = $this->beneficiaryId ? Beneficiary::find($this->beneficiaryId) : null;
-    //     $teller = \App\Models\Eloquent\User::find($this->tellerId);
-    //     $supervisor = $this->supervisorId ? \App\Models\Eloquent\User::find($this->supervisorId) : null;
-
-    //     // Get profile photo for customer only
-    //     $customerModel = Customer::find($this->customerId);
-    //     $customerName = $customerModel->full_name ?? 'Customer';
-    //     $profilePhoto = $customerModel->profile_photo_url ?? $this->getDefaultProfilePhoto($customerName);
-    //     $signature = $customerModel->signature_url ?? null;
-
-    //     // Calculate balance after transaction
-    //     $balanceAfter = $this->accountBalance;
-    //     if (in_array($this->transactionType, ['withdrawal', 'transfer', 'bill_payment', 'loan_payment', 'fee_collection'])) {
-    //         $balanceAfter -= (float) $this->amount;
-    //     } elseif (in_array($this->transactionType, ['deposit', 'cash_deposit', 'cheque_deposit', 'initial_deposit'])) {
-    //         $balanceAfter += (float) $this->amount;
-    //     }
-
-    //     $this->transactionPreview = [
-    //         'type' => $this->transactionType,
-    //         'type_display' => ucfirst(str_replace('_', ' ', $this->transactionType)),
-    //         'initiator_type' => $this->transactionInitiator,
-    //         'third_party_info' => $this->transactionInitiator === 'third_party' ? [
-    //             'name' => $this->thirdPartyName,
-    //             'id_type' => $this->thirdPartyIdType,
-    //             'id_number' => $this->thirdPartyIdNumber,
-    //             'phone' => $this->thirdPartyPhone,
-    //             'relationship' => $this->thirdPartyRelationship,
-    //             'authorization_document' => $this->authorizationDocument,
-    //         ] : null,
-    //         'customer' => $customer ? [
-    //             'name' => $customer->full_name,
-    //             'number' => $customer->customer_number,
-    //             'id' => $customer->id_number,
-    //             'profile_photo' => $profilePhoto, // Only customer has profile photo
-    //             'signature' => $signature,
-    //         ] : null,
-    //         'source_account' => $sourceAccount ? [
-    //             'number' => $sourceAccount->account_number,
-    //             'name' => $sourceAccount->accountType->name ?? 'N/A',
-    //             'balance_before' => number_format($this->accountBalance, 2),
-    //             'balance_after' => number_format($balanceAfter, 2),
-    //         ] : null,
-    //         'destination_account' => $destinationAccount ? [
-    //             'number' => $destinationAccount->account_number,
-    //             'name' => $destinationAccount->accountType->name ?? 'N/A',
-    //             'customer' => $destinationAccount->customer->full_name ?? 'N/A',
-    //         ] : null,
-    //         'beneficiary' => $beneficiary ? [
-    //             'name' => $beneficiary->full_name,
-    //             'account' => $beneficiary->account_number,
-    //             'bank' => $beneficiary->bank_name,
-    //         ] : null,
-    //         'amount' => number_format((float) $this->amount, 2),
-    //         'currency' => $this->currency,
-    //         'foreign_amount' => $this->foreignAmount ? number_format((float) $this->foreignAmount, 2) : null,
-    //         'description' => $this->description,
-    //         'purpose' => $this->transactionPurpose,
-    //         'teller' => $teller ? $teller->name : (Auth::user()->name ?? 'Teller'), // Just the name as string, not an array
-    //         'supervisor' => $supervisor ? $supervisor->name : null, // Just the name as string, not an array
-    //         'verification' => [
-    //             'method' => $this->customerVerificationMethod,
-    //             'signature' => $this->customerSignature,
-    //             'id_verified' => $this->idVerified,
-    //             'id_type' => $this->idType,
-    //             'id_number' => $this->idNumber,
-    //         ],
-    //         'receipt_options' => [
-    //             'print' => $this->printReceipt,
-    //             'email' => $this->emailReceipt,
-    //             'sms' => $this->smsReceipt,
-    //         ],
-    //         'cash_denominations' => $this->cashDenominations,
-    //         'metadata' => $this->prepareMetadata(),
-    //         'requires_supervisor' => $this->supervisorApproval,
-    //         'supervisor_auto_assigned' => $this->supervisorApproval && $this->amount >= 10000,
-    //     ];
-    // }
-
+    /**
+     * Prepare transaction preview with limit information
+     */
     private function prepareTransactionPreview()
     {
         $customer = Customer::find($this->customerId);
         $sourceAccount = Account::find($this->sourceAccountId);
         $destinationAccount = $this->destinationAccountId ? Account::find($this->destinationAccountId) : null;
         $beneficiary = $this->beneficiaryId ? Beneficiary::find($this->beneficiaryId) : null;
-        $teller = \App\Models\Eloquent\User::find($this->tellerId);
-        $supervisor = $this->supervisorId ? \App\Models\Eloquent\User::find($this->supervisorId) : null;
+        $teller = User::find($this->tellerId);
+        $supervisor = $this->supervisorId ? User::find($this->supervisorId) : null;
 
         // Get profile photo and signature for customer
         $customerModel = Customer::find($this->customerId);
@@ -1217,8 +1495,8 @@ class TransactionCreate extends Component
                 'name' => $customer->full_name,
                 'number' => $customer->customer_number,
                 'id' => $customer->id_number,
-                'profile_photo' => $profilePhoto, // Profile photo URL
-                'signature' => $signature, // Signature image URL
+                'profile_photo' => $profilePhoto,
+                'signature' => $signature,
             ] : null,
             'source_account' => $sourceAccount ? [
                 'number' => $sourceAccount->account_number,
@@ -1257,8 +1535,11 @@ class TransactionCreate extends Component
             ],
             'cash_denominations' => $this->cashDenominations,
             'metadata' => $this->prepareMetadata(),
-            'requires_supervisor' => $this->supervisorApproval,
-            'supervisor_auto_assigned' => $this->supervisorApproval && $this->amount >= 10000,
+            'requires_supervisor' => $this->requiresSupervisorApproval || $this->supervisorApproval,
+            'supervisor_auto_assigned' => $this->requiresSupervisorApproval,
+            'supervisor_approval_reason' => $this->supervisorApprovalReason,
+            'teller_limit' => $this->tellerLimit,
+            'limit_violations' => $this->limitViolations,
         ];
     }
 
@@ -1270,6 +1551,9 @@ class TransactionCreate extends Component
         return $customer ? $customer->signature_image_url : null;
     }
 
+    /**
+     * Prepare metadata with supervisor approval information
+     */
     private function prepareMetadata()
     {
         $metadata = [
@@ -1285,7 +1569,21 @@ class TransactionCreate extends Component
             'verification_method' => $this->customerVerificationMethod,
             'initiator_type' => $this->transactionInitiator,
             'has_initial_deposit' => $this->hasInitialDeposit,
+
+            // Supervisor approval metadata
+            'requires_supervisor_approval' => $this->requiresSupervisorApproval || $this->supervisorApproval,
+            'supervisor_approval_status' => $this->supervisorApprovalStatus,
+            'supervisor_approval_reason' => $this->supervisorApprovalReason,
+            'supervisor_approved_at' => $this->supervisorApprovedAt,
+            'supervisor_approved_by' => $this->supervisorApprovedBy,
+            'teller_limit_at_time' => $this->tellerLimit,
+            'limit_violations' => $this->limitViolations,
         ];
+
+        // Add supervisor ID if set
+        if ($this->supervisorId) {
+            $metadata['supervisor_id'] = $this->supervisorId;
+        }
 
         // Add third party information if applicable
         if ($this->transactionInitiator === 'third_party') {
@@ -1334,14 +1632,6 @@ class TransactionCreate extends Component
                 break;
         }
 
-        // Add supervisor approval if required
-        if ($this->supervisorApproval) {
-            $metadata['supervisor_approval'] = true;
-            $metadata['supervisor_id'] = $this->supervisorId;
-            $metadata['requires_supervisor_approval'] = true;
-            $metadata['supervisor_auto_assigned'] = $this->amount >= 10000;
-        }
-
         // Add receipt options
         $metadata['receipt_options'] = [
             'print' => $this->printReceipt,
@@ -1352,81 +1642,183 @@ class TransactionCreate extends Component
         return $metadata;
     }
 
+    /**
+     * Override confirmTransaction to include supervisor password verification
+     */
     public function confirmTransaction()
     {
         // Verify supervisor password if required
-        if ($this->supervisorApproval && $this->supervisorPassword) {
-            $supervisor = \App\Models\Eloquent\User::find($this->supervisorId);
+        if ($this->requiresSupervisorApproval) {
+            if (!$this->verifySupervisorPassword()) {
+                return;
+            }
+        } elseif ($this->supervisorApproval && $this->supervisorPassword) {
+            // Manual supervisor approval check
+            $supervisor = User::find($this->supervisorId);
             if (!$supervisor || !\Illuminate\Support\Facades\Hash::check($this->supervisorPassword, $supervisor->password)) {
                 $this->addError('supervisorPassword', 'Invalid supervisor password');
                 return;
             }
+
+            $this->supervisorApprovalStatus = 'approved';
+            $this->supervisorApprovedAt = now();
+            $this->supervisorApprovedBy = $supervisor->id;
         }
 
         // Process the transaction
         $this->processTransaction();
     }
 
+
+    /**
+     * Get summary of limits for display
+     */
+    public function getLimitSummaryProperty()
+    {
+        $summary = [
+            'teller_limit' => number_format($this->tellerLimit, 2),
+            'daily_limit' => number_format($this->getDailyLimitForTeller(Auth::user()), 2),
+            'transaction_limits' => [],
+        ];
+
+        if ($this->sourceAccountId && $this->selectedAccount) {
+            $account = $this->selectedAccount;
+            if ($account->accountType) {
+                $limits = TransactionLimit::where('account_type_id', $account->account_type_id)
+                    ->where('is_active', true)
+                    ->get();
+
+                foreach ($limits as $limit) {
+                    $summary['transaction_limits'][] = [
+                        'type' => $limit->transaction_type,
+                        'period' => $limit->period,
+                        'max_amount' => $limit->max_amount ? number_format($limit->max_amount, 2) : 'Unlimited',
+                        'max_count' => $limit->max_count ?? 'Unlimited',
+                    ];
+                }
+            }
+        }
+
+        return $summary;
+    }
+
+
+    /**
+     * Process the transaction with proper service integration
+     */
     public function processTransaction()
     {
         $this->isProcessing = true;
 
         try {
-            $transactionService = app(EnhancedTransactionService::class);
+            // Use the new TellerTransactionService
+            $transactionService = app(\App\Services\Transaction\TellerTransactionService::class);
 
-            // Get the source account
-            $sourceAccount = Account::find($this->sourceAccountId);
-            if (!$sourceAccount) {
-                throw new \Exception('Source account not found');
+            $teller = Auth::user();
+
+            // Prepare supervisor data if approval is required
+            $supervisorData = null;
+            if ($this->requiresSupervisorApproval || $this->supervisorApproval) {
+                $supervisor = User::find($this->supervisorId);
+                if ($supervisor) {
+                    $supervisorData = [
+                        'supervisor_id' => $supervisor->id,
+                        'reason' => $this->supervisorApprovalReason ?? 'Supervisor approval required',
+                        'metadata' => [
+                            'teller_limit' => $this->tellerLimit,
+                            'amount' => $this->amount,
+                            'limit_violations' => $this->limitViolations,
+                            'supervisor_notes' => $this->supervisorApprovalNotes,
+                        ]
+                    ];
+                }
             }
 
-            // Process based on transaction type
+            // Prepare base transaction data
+            $baseData = [
+                'amount' => (float) $this->amount,
+                'description' => $this->description,
+                'metadata' => $this->prepareMetadata(),
+            ];
+
             $transaction = null;
 
+            // Process based on transaction type
             switch ($this->transactionType) {
                 case 'withdrawal':
-                    $transactionData = [
+                    $transactionData = array_merge($baseData, [
                         'account_id' => $this->sourceAccountId,
-                        'amount' => (float) $this->amount,
-                        'description' => $this->description,
-                        'metadata' => $this->prepareMetadata(),
-                    ];
-                    $transaction = $transactionService->withdraw($transactionData);
+                    ]);
+                    $transaction = $transactionService->processWithdrawal(
+                        $transactionData,
+                        $teller,
+                        $supervisorData
+                    );
                     break;
 
                 case 'cash_deposit':
-                case 'deposit':
-                    $transactionData = [
+                    $transactionData = array_merge($baseData, [
                         'account_id' => $this->sourceAccountId,
-                        'amount' => (float) $this->amount,
-                        'description' => $this->description,
-                        'metadata' => $this->prepareMetadata(),
-                    ];
-                    $transaction = $transactionService->cashDeposit($transactionData);
+                        'transaction_type' => 'cash_deposit',
+                    ]);
+                    $transaction = $transactionService->processCashDeposit(
+                        $transactionData,
+                        $teller,
+                        $supervisorData
+                    );
+                    break;
+
+                case 'cheque_deposit':
+                    $transactionData = array_merge($baseData, [
+                        'account_id' => $this->sourceAccountId,
+                        'transaction_type' => 'cheque_deposit',
+                        'cheque_number' => $this->chequeNumber,
+                        'drawer_bank' => $this->drawerBank,
+                    ]);
+                    $transaction = $transactionService->processChequeDeposit(
+                        $transactionData,
+                        $teller,
+                        $supervisorData
+                    );
+                    break;
+
+                case 'deposit':
+                    // Generic deposit - treat as cash deposit
+                    $transactionData = array_merge($baseData, [
+                        'account_id' => $this->sourceAccountId,
+                        'transaction_type' => 'cash_deposit',
+                    ]);
+                    $transaction = $transactionService->processCashDeposit(
+                        $transactionData,
+                        $teller,
+                        $supervisorData
+                    );
                     break;
 
                 case 'transfer':
                     if (!$this->destinationAccountId) {
                         throw new \Exception('Destination account is required for transfer');
                     }
-                    $transactionData = [
+                    $transactionData = array_merge($baseData, [
                         'from_account_id' => $this->sourceAccountId,
                         'to_account_id' => $this->destinationAccountId,
-                        'amount' => (float) $this->amount,
-                        'description' => $this->description,
-                        'metadata' => $this->prepareMetadata(),
-                    ];
-                    $transaction = $transactionService->transfer($transactionData);
+                    ]);
+                    $transaction = $transactionService->processTransfer(
+                        $transactionData,
+                        $teller,
+                        $supervisorData
+                    );
                     break;
 
                 case 'initial_deposit':
-                    $transactionData = [
+                    $transactionData = array_merge($baseData, [
                         'account_id' => $this->sourceAccountId,
-                        'amount' => (float) $this->amount,
-                        'description' => $this->description,
-                        'metadata' => $this->prepareMetadata(),
-                    ];
-                    $transaction = $transactionService->initialDeposit($transactionData);
+                    ]);
+                    $transaction = $transactionService->processInitialDeposit(
+                        $transactionData,
+                        $teller,
+                        $supervisorData
+                    );
                     break;
 
                 default:
@@ -1437,21 +1829,10 @@ class TransactionCreate extends Component
                 throw new \Exception('Failed to create transaction');
             }
 
-            // Send receipts if requested
-            if ($this->printReceipt) {
-                $this->printTransactionReceipt($transaction);
-            }
-
-            if ($this->emailReceipt && $this->customerEmail) {
-                $this->sendEmailReceipt($transaction, $this->customerEmail);
-            }
-
-            if ($this->smsReceipt && $this->customerPhone) {
-                $this->sendSmsReceipt($transaction, $this->customerPhone);
-            }
+            // Handle receipts
+            $this->handleReceipts($transaction);
 
             session()->flash('success', 'Transaction completed successfully.');
-            // Redirect to transaction details page
             return redirect()->route('transactions.show', $transaction->id);
         } catch (\Exception $e) {
             session()->flash('error', 'Transaction failed: ' . $e->getMessage());
@@ -1461,11 +1842,31 @@ class TransactionCreate extends Component
                 'destination_account_id' => $this->destinationAccountId,
                 'amount' => $this->amount,
                 'user_id' => Auth::id(),
+                'requires_supervisor' => $this->requiresSupervisorApproval,
+                'supervisor_id' => $this->supervisorId,
                 'error_trace' => $e->getTraceAsString()
             ]);
             return redirect()->route('transactions.index');
         } finally {
             $this->isProcessing = false;
+        }
+    }
+
+    /**
+     * Handle receipt generation and sending
+     */
+    private function handleReceipts($transaction)
+    {
+        if ($this->printReceipt) {
+            $this->printTransactionReceipt($transaction);
+        }
+
+        if ($this->emailReceipt && $this->customerEmail) {
+            $this->sendEmailReceipt($transaction, $this->customerEmail);
+        }
+
+        if ($this->smsReceipt && $this->customerPhone) {
+            $this->sendSmsReceipt($transaction, $this->customerPhone);
         }
     }
 

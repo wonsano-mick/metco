@@ -70,7 +70,7 @@
                             <div class="flex justify-between">
                                 <span class="text-sm text-gray-600">Available Balance:</span>
                                 <span
-                                    class="text-sm font-medium text-gray-900">{{ number_format($account->available_balance, 2) }}
+                                    class="text-sm font-medium text-gray-900">{{ number_format($account->current_balance - $account->minimum_balance, 2) }}
                                     {{ $account->currency }}</span>
                             </div>
                             <div class="flex justify-between">

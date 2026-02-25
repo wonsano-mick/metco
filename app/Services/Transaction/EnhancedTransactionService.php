@@ -9,6 +9,7 @@ use App\Models\Eloquent\SystemAccount;
 use App\Models\Eloquent\SystemLedgerEntry;
 use App\Models\Eloquent\Transaction;
 use App\Models\Eloquent\User;
+use App\Services\Teller\TellerLimitService;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
@@ -16,14 +17,17 @@ use Illuminate\Support\Str;
 
 class EnhancedTransactionService
 {
-    private $tenantId;
+    protected TellerLimitService $tellerLimitService;
+
     private $userId;
     private $branchId;
 
-    public function __construct()
+    public function __construct($userId = null, $branchId = null)
     {
-        $this->userId = Auth::id();
-        $this->branchId = Auth::user()->branch_id ?? null;
+        $user = auth()->user();
+        
+        $this->userId = $userId ?? ($user ? $user->id : null);
+        $this->branchId = $branchId ?? ($user ? $user->branch_id : null);
     }
 
     /**

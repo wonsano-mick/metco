@@ -558,7 +558,7 @@ class CustomerCreate extends Component
                 'verified_at' => $this->kyc_status === 'verified' ? now() : null,
                 'notes' => $this->notes,
                 'metadata' => [
-                    'created_by' => Auth::user()->id,
+                    'created_by' => Auth::user()->first_name.' '.Auth::user()->last_name,
                     'created_at' => now()->toISOString(),
                     'customer_type' => $this->customer_type,
                 ],
