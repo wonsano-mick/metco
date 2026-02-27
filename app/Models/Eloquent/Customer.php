@@ -155,7 +155,7 @@ class Customer extends Model
     public function verifiedBy(){
         return $this->belongsTo(EloquentUser::class, 'verified_by');
     }
-
+ 
     public function accounts(): HasMany
     {
         return $this->hasMany(Account::class, 'customer_id');

@@ -113,6 +113,12 @@
                                                 {{ optional($transaction->created_at)->format('F d, Y h:i A') ?? 'N/A' }}
                                             </div>
                                         </div>
+                                        <div>
+                                            <div class="text-sm font-medium text-gray-500">Initiator:</div>
+                                            <div class="mt-1 text-lg font-semibold text-gray-900">
+                                                {{ $transaction->initiator_display_name }}
+                                            </div>
+                                        </div>
                                     </div>
                                     <div class="space-y-4">
                                         <div>
@@ -122,7 +128,7 @@
                                             </div>
                                         </div>
                                         <div>
-                                            <div class="text-sm font-medium text-gray-500">Initiated By</div>
+                                            <div class="text-sm font-medium text-gray-500">Teller: </div>
                                             <div class="mt-1 flex items-center">
                                                 @if ($transaction->initiator)
                                                     <div
@@ -133,9 +139,9 @@
                                                     </div>
                                                     <div class="ml-3">
                                                         <div class="text-lg font-semibold text-gray-900">
-                                                            {{ $transaction->initiator->name }}</div>
-                                                        <div class="text-sm text-gray-500">
-                                                            {{ $transaction->initiator->email }}</div>
+                                                            {{ ucwords($transaction->initiator->first_name . ' ' . $transaction->initiator->last_name) }}
+                                                        </div>
+                                                        {{-- <div class="text-sm text-gray-500"> {{ $transaction->initiator->email }}</div> --}}
                                                     </div>
                                                 @else
                                                     <div class="text-lg font-semibold text-gray-900">System</div>
@@ -904,7 +910,8 @@
                                     <div>
                                         <div class="text-sm text-gray-500">Teller Name</div>
                                         <div class="text-lg font-semibold">
-                                            {{ $transaction->initiator->first_name.' '.$transaction->initiator->last_name ?? 'System' }}</div>
+                                            {{ $transaction->initiator->first_name . ' ' . $transaction->initiator->last_name ?? 'System' }}
+                                        </div>
                                     </div>
                                     <div>
                                         <div class="text-sm text-gray-500">Status</div>
@@ -979,7 +986,8 @@
                                     </div>
                                     <div class="flex justify-between items-center py-2 border-b border-gray-100">
                                         <span class="text-gray-600">Amount in words</span>
-                                        <span class="font-semibold">{{ App\Helpers\MoneyConverter::numberToWords($transaction->amount) }}</span>
+                                        <span
+                                            class="font-semibold">{{ App\Helpers\MoneyConverter::numberToWords($transaction->amount) }}</span>
                                     </div>
                                     @if ($transaction->fee_amount)
                                         <div class="flex justify-between items-center py-2 border-b border-gray-100">
@@ -987,7 +995,6 @@
                                             <span
                                                 class="text-red-600 font-semibold">-{{ number_format($transaction->fee_amount, 2) }}</span>
                                         </div>
-                                        
                                     @endif
                                     @if ($transaction->tax_amount)
                                         <div class="flex justify-between items-center py-2 border-b border-gray-100">
@@ -1076,13 +1083,13 @@
     </script>
 @endpush
 @push('scripts')
-<script>
-    // Print receipt preview
-    function printReceiptPreview() {
-        const receiptContent = document.querySelector('[data-receipt-content]');
-        const printWindow = window.open('', '_blank');
-        
-        printWindow.document.write(`
+    <script>
+        // Print receipt preview
+        function printReceiptPreview() {
+            const receiptContent = document.querySelector('[data-receipt-content]');
+            const printWindow = window.open('', '_blank');
+
+            printWindow.document.write(`
             <!DOCTYPE html>
             <html>
             <head>
@@ -1106,7 +1113,7 @@
                     
                     <div class="details">
                         <p><strong>Amount:</strong> {{ $transaction->currency ?? '' }} {{ number_format($transaction->amount ?? 0, 2) }}</p>
-                        <p><strong>Amount in words:{{ ' '.App\Helpers\MoneyConverter::numberToWords($transaction->amount) }}</p>
+                        <p><strong>Amount in words:{{ ' ' . App\Helpers\MoneyConverter::numberToWords($transaction->amount) }}</p>
                         <p><strong>Type:</strong> {{ ucfirst($transaction->type ?? '') }}</p>
                         <p><strong>Date:</strong> {{ $transaction->created_at ? $transaction->created_at->format('F d, Y h:i A') : 'N/A' }}</p>
                         <p><strong>Status:</strong> {{ ucfirst($transaction->status ?? '') }}</p>
@@ -1121,48 +1128,49 @@
             </body>
             </html>
         `);
-        
-        printWindow.document.close();
-        printWindow.focus();
-        setTimeout(() => {
-            printWindow.print();
-            printWindow.close();
-        }, 500);
-    }
 
-    // Keyboard shortcuts
-    document.addEventListener('keydown', function(e) {
-        // Ctrl/Cmd + P to print receipt when modal is open
-        if ((e.ctrlKey || e.metaKey) && e.key === 'p' && @json($showReceiptModal)) {
-            e.preventDefault();
-            printReceiptPreview();
+            printWindow.document.close();
+            printWindow.focus();
+            setTimeout(() => {
+                printWindow.print();
+                printWindow.close();
+            }, 500);
         }
-        
-        // Escape to close modal
-        if (e.key === 'Escape' && @json($showReceiptModal)) {
-            @this.set('showReceiptModal', false);
-        }
-    });
 
-    // Livewire hooks for receipt actions
-    document.addEventListener('livewire:initialized', () => {
-        // Show loading state for receipt actions
-        Livewire.on('receipt-processing', () => {
-            // Add loading overlay
-            const modal = document.querySelector('[aria-modal="true"]');
-            if (modal) {
-                const loadingDiv = document.createElement('div');
-                loadingDiv.className = 'fixed inset-0 bg-white bg-opacity-90 flex items-center justify-center z-50';
-                loadingDiv.innerHTML = `
+        // Keyboard shortcuts
+        document.addEventListener('keydown', function(e) {
+            // Ctrl/Cmd + P to print receipt when modal is open
+            if ((e.ctrlKey || e.metaKey) && e.key === 'p' && @json($showReceiptModal)) {
+                e.preventDefault();
+                printReceiptPreview();
+            }
+
+            // Escape to close modal
+            if (e.key === 'Escape' && @json($showReceiptModal)) {
+                @this.set('showReceiptModal', false);
+            }
+        });
+
+        // Livewire hooks for receipt actions
+        document.addEventListener('livewire:initialized', () => {
+            // Show loading state for receipt actions
+            Livewire.on('receipt-processing', () => {
+                // Add loading overlay
+                const modal = document.querySelector('[aria-modal="true"]');
+                if (modal) {
+                    const loadingDiv = document.createElement('div');
+                    loadingDiv.className =
+                        'fixed inset-0 bg-white bg-opacity-90 flex items-center justify-center z-50';
+                    loadingDiv.innerHTML = `
                     <div class="text-center">
                         <div class="inline-block animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-blue-500 mb-4"></div>
                         <div class="text-lg font-medium text-gray-900">Processing Receipt...</div>
                         <div class="text-gray-600">Please wait</div>
                     </div>
                 `;
-                modal.appendChild(loadingDiv);
-            }
+                    modal.appendChild(loadingDiv);
+                }
+            });
         });
-    });
-</script>
+    </script>
 @endpush

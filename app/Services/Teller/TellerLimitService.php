@@ -12,7 +12,7 @@ class TellerLimitService
     /**
      * Check if teller can process transaction
      */
-    public function canProcessTransaction(User $teller, float $amount, ?Account $account = null, string $transactionType = null): array
+    public function canProcessTransaction(User $teller, float $amount, ?Account $account = null, ?string $transactionType = null): array
     {
         $result = [
             'can_process' => true,

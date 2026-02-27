@@ -81,7 +81,7 @@ class TellerDashboard extends Component
                     ->whereDate('created_at', today())
                     ->orderBy('created_at', 'asc')
                     ->get();
-
+ 
                 // Convert to array format
                 foreach ($systemEntries as $entry) {
                     $this->todayTransactions[] = [

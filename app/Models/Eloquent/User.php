@@ -193,6 +193,16 @@ class User extends Authenticatable
         return $query->where('branch_id', $branchId);
     }
 
+    public function initiatedTransactions()
+    {
+        return $this->hasMany(Transaction::class, 'initiated_by');
+    }
+
+    public function completedTransactions()
+    {
+        return $this->hasMany(Transaction::class, 'completed_by');
+    }
+
     public function scopeSearch($query, $search)
     {
         return $query->where(function ($q) use ($search) {
@@ -201,5 +211,11 @@ class User extends Authenticatable
                 ->orWhere('email', 'like', "%{$search}%")
                 ->orWhere('username', 'like', "%{$search}%");
         });
+    }
+
+ public function tellerAccount()
+    {
+        return $this->hasOne(SystemAccount::class, 'metadata->user_id')
+            ->where('type', 'teller');
     }
 }

@@ -38,7 +38,7 @@ class Transaction extends Model
         // Description and Metadata
         'description',
         'notes',
-        'metadata',
+        'metadata', 
         'failure_reason',
 
         // Parties Involved
@@ -165,7 +165,7 @@ class Transaction extends Model
         $this->save();
     }
 
-    public function fail(string $reason = null): void
+    public function fail(?string $reason = null): void
     {
         $this->status = 'failed';
         if ($reason) {
@@ -174,7 +174,7 @@ class Transaction extends Model
             $this->metadata = $metadata;
         }
         $this->save();
-    }
+    } 
 
     public function reverse(): void
     {
@@ -287,5 +287,25 @@ class Transaction extends Model
         ]);
 
         return $this;
+    }
+
+    public function getInitiatorDisplayNameAttribute()
+    {
+        $meta = $this->metadata;
+        $type = $meta['initiator_type'] ?? null;
+
+        if ($type === 'third_party') {
+            $name = $meta['third_party']['name'] ?? 'Unknown';
+            $phone = $meta['third_party']['phone'] ?? 'No Phone';
+            $idNumber = $meta['third_party']['id_number'] ?? 'No ID';
+
+            return "{$name} ({$phone}) - ID: {$idNumber}";
+        }
+
+        if ($type === 'self') {
+            return 'Account Holder';
+        }
+
+        return 'N/A';
     }
 }

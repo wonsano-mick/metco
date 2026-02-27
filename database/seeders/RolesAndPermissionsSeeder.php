@@ -67,6 +67,7 @@ class RolesAndPermissionsSeeder extends Seeder
             'withdraw funds',
             'deposit funds',
             'freeze accounts',
+            'export account statements',
 
             // Transaction permissions
             'view transactions',
@@ -123,6 +124,7 @@ class RolesAndPermissionsSeeder extends Seeder
                 'deposit funds',
                 'view transactions',
                 'create transactions',
+                'export account statements',
             ],
             'teller' => [
                 'view accounts',
@@ -132,6 +134,10 @@ class RolesAndPermissionsSeeder extends Seeder
                 'view transactions',
                 'create transactions',
                 'view customers',
+                'view reports',
+            'generate reports',
+            'export data',
+                'export account statements',
             ],
             'manager' => [
                 'user.view',
@@ -156,6 +162,8 @@ class RolesAndPermissionsSeeder extends Seeder
                 'manage branch',
                 'view reports',
                 'generate reports',
+                'export data',
+                'export account statements',
                 'view loans',
                 'approve loans',
                 'reject loans',
@@ -168,6 +176,7 @@ class RolesAndPermissionsSeeder extends Seeder
                 'view customers',
                 'create customers',
                 'update customers',
+                'export account statements',
             ],
             'supervisor' => [
                 'view reports',
@@ -193,6 +202,7 @@ class RolesAndPermissionsSeeder extends Seeder
                 'withdraw funds',
                 'deposit funds',
                 'freeze accounts',
+                'export account statements',
             ],
             'loan-officer' => [
                 'view customers',
@@ -206,6 +216,7 @@ class RolesAndPermissionsSeeder extends Seeder
                 'review loans',
                 'disburse loans',
                 'process loan payment',
+                'export account statements',
             ],
             'loan committee'=>[
                 'view loans',

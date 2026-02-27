@@ -4,6 +4,7 @@ use App\Livewire\Accounts\AccountCreate;
 use App\Livewire\Accounts\AccountEdit;
 use App\Livewire\Accounts\AccountIndex;
 use App\Livewire\Accounts\AccountShow;
+use App\Livewire\Accounts\AccountStatement;
 use App\Livewire\Accounts\AccountTransaction;
 use App\Livewire\Auth\Login;
 use App\Livewire\Customers\CustomerCreate;
@@ -15,6 +16,7 @@ use App\Livewire\Loans\LoanApplication;
 use App\Livewire\Loans\LoanIndex;
 use App\Livewire\Loans\LoanReview;
 use App\Livewire\Loans\LoanShow;
+use App\Livewire\Reports\ReportIndex;
 use App\Livewire\Teller\TellerDashboard;
 use App\Livewire\Teller\TellerIndex;
 use App\Livewire\Transactions\TransactionCreate;
@@ -85,12 +87,11 @@ Route::middleware('auth')->group(function () {
         Route::get('/{transaction}', ViewTransaction::class)->name('show');
     });
 
-    //Reports routes
-    Route::prefix('reports')->name('reports.')->group(function () {
-        Route::get('/', TransactionIndex::class)->name('index');
-        // Route::get('/create', TransactionCreate::class)->name('create');
-        // Route::get('/{transaction}', ViewTransaction::class)->name('show');
-    });
+   //Reports routes
+Route::prefix('reports')->name('reports.')->group(function () {
+    Route::get('/', ReportIndex::class)->name('index');
+    Route::get('/accounts/{accountId}/statement', AccountStatement::class)->name('accounts.statement');
+});
 
     //Loans routes
     Route::prefix('loans')->name('loans.')->group(function () {

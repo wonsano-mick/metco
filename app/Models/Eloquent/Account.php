@@ -66,7 +66,7 @@ class Account extends Model
     // public function tenant(): BelongsTo
     // {
     //     return $this->belongsTo(Tenant::class);
-    // }
+    // } 
 
     public function user(): BelongsTo
     {
