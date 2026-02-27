@@ -180,6 +180,13 @@ class TransactionCreate extends Component
     // Flag to check if initial deposit is done
     public $hasInitialDeposit = false;
 
+   /**
+ * Cash denominations (for cash transactions)
+ */
+public $cashDenominations = [];
+public $autoCalculateDenominations = false; // Flag to control auto-calculation of denominations
+    public $previousCashDenominations = [];
+
     // Relationship options for third party
     public $relationshipOptions = [
         'spouse' => 'Spouse',
@@ -257,9 +264,6 @@ class TransactionCreate extends Component
         'tax' => 'Tax',
         'other' => 'Other',
     ];
-
-    // Cash denominations (for cash transactions)
-    public $cashDenominations = [];
 
     protected $listeners = [
         'transactionConfirmed' => 'processTransaction',
@@ -614,14 +618,6 @@ class TransactionCreate extends Component
 
             // Also set supervisorApproval to true for UI
             $this->supervisorApproval = true;
-
-            // Log auto-assignment with correct amount
-            Log::info('Supervisor auto-assigned for transaction exceeding limit', [
-                'teller_id' => Auth::id(),
-                'amount' => $this->amount,
-                'supervisor_id' => $this->supervisorId,
-                'reason' => $this->supervisorApprovalReason
-            ]);
         }
     }
     /**
@@ -682,48 +678,6 @@ class TransactionCreate extends Component
         $this->supervisorApprovedBy = $supervisor->id;
 
         return true;
-    }
-
-    /**
-     * Updated amount handler with limit checking
-     */
-    public function updatedAmount($value)
-    {
-        try {
-            // Ensure value is numeric before processing
-            $value = (float) $value;
-
-            $this->amount = $value;
-            $this->validateAmount();
-
-            // Check teller limits
-            $this->checkTellerLimit();
-
-            // Auto-assign supervisor if needed
-            if ($this->requiresSupervisorApproval) {
-                $this->autoAssignSupervisor();
-                session()->flash('info', 'This transaction requires supervisor approval as it exceeds teller limits.');
-            }
-
-            // Auto-calculate cash denominations for cash transactions
-            if (
-                in_array($this->transactionType, ['withdrawal', 'cash_deposit']) &&
-                $this->cashHandlingMethod === 'cash' &&
-                is_numeric($value) && $value > 0
-            ) {
-                $this->calculateCashDenominations($value);
-            }
-        } catch (\Exception $e) {
-            Log::error('Error in updatedAmount', [
-                'message' => $e->getMessage(),
-                'trace' => $e->getTraceAsString(),
-                'amount' => $value,
-                'transaction_type' => $this->transactionType
-            ]);
-
-            // Re-throw to see the error in Laravel log
-            throw $e;
-        }
     }
 
     /**
@@ -1033,38 +987,233 @@ class TransactionCreate extends Component
 
     private function initializeCashDenominations()
     {
-        $this->cashDenominations = [
-            ['denomination' => 200, 'count' => 0],
-            ['denomination' => 100, 'count' => 0],
-            ['denomination' => 50, 'count' => 0],
-            ['denomination' => 20, 'count' => 0],
-            ['denomination' => 10, 'count' => 0],
-            ['denomination' => 5, 'count' => 0],
-            ['denomination' => 2, 'count' => 0],
-            ['denomination' => 1, 'count' => 0],
-            ['denomination' => 0.50, 'count' => 0],
-            ['denomination' => 0.20, 'count' => 0],
-            ['denomination' => 0.10, 'count' => 0],
-            ['denomination' => 0.05, 'count' => 0],
-            ['denomination' => 0.01, 'count' => 0],
-        ];
+        // Only initialize if empty (preserve existing values)
+        if (empty($this->cashDenominations)) {
+            $this->cashDenominations = [
+                ['denomination' => 200, 'count' => 0],
+                ['denomination' => 100, 'count' => 0],
+                ['denomination' => 50, 'count' => 0],
+                ['denomination' => 20, 'count' => 0],
+                ['denomination' => 10, 'count' => 0],
+                ['denomination' => 5, 'count' => 0],
+                ['denomination' => 2, 'count' => 0],
+                ['denomination' => 1, 'count' => 0],
+                ['denomination' => 0.50, 'count' => 0],
+                ['denomination' => 0.20, 'count' => 0],
+                ['denomination' => 0.10, 'count' => 0],
+                ['denomination' => 0.05, 'count' => 0],
+                ['denomination' => 0.01, 'count' => 0],
+            ];
+        }
     }
 
-    // MANUAL DENOMINATION UPDATE - ALLOW TELLER TO ADJUST COUNTS
+    /**
+     * Update denomination count and recalculate total
+     */
     public function updateDenomination($index, $count)
     {
         if (isset($this->cashDenominations[$index])) {
             $this->cashDenominations[$index]['count'] = max(0, (int) $count);
 
-            // Validate total matches amount
-            $total = $this->getTotalCashCount();
-            if (abs($total - (float) $this->amount) > 0.01) {
-                $this->addError('cashDenominations', 'Total cash amount must equal transaction amount');
-            } else {
-                $this->clearValidation('cashDenominations');
+            // If auto-calculate is off, validate total matches amount
+            if (!$this->autoCalculateDenominations) {
+                $this->validateCashTotal();
             }
+
+            // Recalculate total and update component
+            $this->dispatch('denominations-updated');
         }
     }
+
+    /**
+     * Quick fill denominations based on strategy
+     */
+    public function quickFillDenominations($strategy = 'largest')
+    {
+        if (!$this->amount || (float)$this->amount <= 0) {
+            session()->flash('warning', 'Please enter an amount first');
+            return;
+        }
+
+        $amount = (float) $this->amount;
+
+        // Reset all counts
+        $this->clearDenominations();
+
+        if ($strategy === 'largest') {
+            // Use largest denominations first
+            $remaining = $amount;
+            $denominations = collect($this->cashDenominations)->sortByDesc('denomination');
+
+            foreach ($denominations as $index => $denom) {
+                if ($remaining >= $denom['denomination'] - 0.001) {
+                    $count = (int) floor($remaining / $denom['denomination']);
+                    $this->cashDenominations[$index]['count'] = $count;
+                    $remaining = round($remaining - ($count * $denom['denomination']), 2);
+                }
+            }
+        } else {
+            // Balanced approach
+            $this->calculateCashDenominations($amount);
+        }
+    }
+
+
+    /**
+     * Clear all denomination counts
+     */
+    public function clearDenominations()
+{
+        foreach ($this->cashDenominations as $key => $denom) {
+            $this->cashDenominations[$key]['count'] = 0;
+        }
+}
+
+    /**
+     * Validate that cash total matches transaction amount
+     */
+    private function validateCashTotal()
+    {
+        $total = (float) str_replace(',', '', $this->getTotalCashCount());
+        $amount = (float) $this->amount;
+
+        if (abs($total - $amount) > 0.01) {
+            $this->addError('cashDenominations', 'Total cash amount must equal transaction amount');
+            return false;
+        }
+
+        $this->clearValidation('cashDenominations');
+        return true;
+    }
+
+    /**
+     * Override getTotalCashCount to return float for calculations
+     */
+    public function getTotalCashCount()
+{
+    if (empty($this->cashDenominations)) {
+        return '0.00';
+    }
+
+    $total = 0;
+    foreach ($this->cashDenominations as $denomination) {
+        $total += $denomination['denomination'] * (int)($denomination['count'] ?? 0);
+    }
+    return number_format($total, 2);
+}
+
+    /**
+     * Get total as float for calculations
+     */
+    public function getTotalCashFloat()
+{
+    if (empty($this->cashDenominations)) {
+        return 0.00;
+    }
+
+    $total = 0;
+    foreach ($this->cashDenominations as $denomination) {
+        $total += $denomination['denomination'] * (int)($denomination['count'] ?? 0);
+    }
+    return (float) $total;
+}
+
+    /**
+     * Update the updatedAmount method to handle auto-calculation
+     */
+    public function updatedAmount($value)
+    {
+        try {
+            // Ensure value is numeric before processing
+            $value = $value !== '' ? (float) $value : 0;
+
+            $this->amount = $value;
+
+            if ($value > 0) {
+                $this->validateAmount();
+
+                // Check teller limits
+                $this->checkTellerLimit();
+
+                // Auto-assign supervisor if needed
+                if ($this->requiresSupervisorApproval) {
+                    $this->autoAssignSupervisor();
+                    session()->flash('info', 'This transaction requires supervisor approval as it exceeds teller limits.');
+                }
+
+                // Calculate foreign amount if needed
+                $this->calculateForeignAmount();
+
+                // Check if we have any manual entries
+                $hasManualEntries = false;
+                foreach ($this->cashDenominations as $denom) {
+                    if (($denom['count'] ?? 0) > 0) {
+                        $hasManualEntries = true;
+                        break;
+                    }
+                }
+
+                // ONLY auto-calculate if:
+                // 1. autoCalculateDenominations is true
+                // 2. We're in cash mode
+                // 3. There are no manual entries yet
+                if (
+                    in_array($this->transactionType, ['withdrawal', 'cash_deposit']) &&
+                    $this->cashHandlingMethod === 'cash' &&
+                    $this->autoCalculateDenominations &&
+                    !$hasManualEntries
+                ) {
+                    $this->calculateCashDenominations($value);
+                }
+            }
+        } catch (\Exception $e) {
+            Log::error('Error in updatedAmount', [
+                'message' => $e->getMessage(),
+                'trace' => $e->getTraceAsString(),
+                'amount' => $value,
+                'transaction_type' => $this->transactionType
+            ]);
+
+            session()->flash('error', 'An error occurred while processing the amount.');
+        }
+    }
+
+    /**
+     * Update cash handling method handler
+     */
+   public function updatedCashHandlingMethod($value)
+{
+        if ($value === 'cash') {
+            // When switching to cash, ensure denominations are initialized but preserve existing counts
+            if (empty($this->cashDenominations)) {
+                $this->initializeCashDenominations();
+            }
+
+            // Only auto-calculate if we have amount and auto-calculate is on, AND no denominations are set
+            $hasManualEntries = false;
+            foreach ($this->cashDenominations as $denom) {
+                if (($denom['count'] ?? 0) > 0) {
+                    $hasManualEntries = true;
+                    break;
+                }
+            }
+
+            if ($this->amount && $this->autoCalculateDenominations && !$hasManualEntries) {
+                $this->calculateCashDenominations((float) $this->amount);
+            }
+        }
+}
+
+/**
+ * Toggle auto-calculate
+ */
+public function updatedAutoCalculateDenominations($value)
+{
+    if ($value && $this->amount && in_array($this->transactionType, ['withdrawal', 'cash_deposit'])) {
+        // When turning auto-calculate on, recalculate based on amount
+        $this->calculateCashDenominations((float) $this->amount);
+    }
+}
 
     public function updatedCurrency($value)
     {
@@ -1093,20 +1242,56 @@ class TransactionCreate extends Component
 
     private function calculateCashDenominations($amount)
     {
-        $remaining = $amount;
-        $denominations = [200, 100, 50, 20, 10, 5, 2, 1, 0.50, 0.20, 0.10, 0.05, 0.01];
+        if (!$amount || $amount <= 0) {
+            return;
+        }
 
-        foreach ($this->cashDenominations as $key => $denomination) {
-            $denomValue = $denomination['denomination'];
-            if ($remaining >= $denomValue - 0.001) { // Small epsilon for floating point
-                $count = floor($remaining / $denomValue);
-                $this->cashDenominations[$key]['count'] = $count;
-                $remaining = round($remaining - ($count * $denomValue), 2);
-            } else {
-                $this->cashDenominations[$key]['count'] = 0;
+        $remaining = (float) $amount;
+
+        // Sort denominations in descending order for calculation
+        $denominations = collect($this->cashDenominations)->sortByDesc('denomination')->values()->toArray();
+
+        // Create a map of denomination values to their positions
+        $denominationMap = [];
+        foreach ($this->cashDenominations as $index => $denom) {
+            $denominationMap[(string)$denom['denomination']] = $index;
+        }
+
+        // Calculate counts
+        foreach ($denominations as $denom) {
+            $denomValue = (float) $denom['denomination'];
+            $denomKey = (string)$denomValue;
+
+            if (isset($denominationMap[$denomKey])) {
+                $index = $denominationMap[$denomKey];
+                if ($remaining >= $denomValue - 0.001) {
+                    $count = (int) floor($remaining / $denomValue);
+                    $this->cashDenominations[$index]['count'] = $count;
+                    $remaining = round($remaining - ($count * $denomValue), 2);
+                } else {
+                    $this->cashDenominations[$index]['count'] = 0;
+                }
             }
         }
     }
+
+
+    /**
+     * Update denomination count - FIXED for Livewire binding
+     */
+public function updatedCashDenominations($value, $key)
+{
+        // This is called when a denomination count is updated via wire:model.live
+        // Extract the index and field from the key (format: "index.count")
+        $parts = explode('.', $key);
+        if (count($parts) === 2 && $parts[1] === 'count') {
+            $index = (int) $parts[0];
+            if (isset($this->cashDenominations[$index])) {
+                // Ensure count is integer and non-negative
+                $this->cashDenominations[$index]['count'] = max(0, (int) $value);
+            }
+        }
+}
 
     private function loadTransactionLimits()
     {
@@ -1186,6 +1371,9 @@ class TransactionCreate extends Component
      */
     public function nextStep()
     {
+        // Store current denominations before moving to next step
+        $this->previousCashDenominations = $this->cashDenominations;
+
         // Validate current step before moving forward
         if (!$this->validateCurrentStep()) {
             session()->flash('error', 'Please fill in all required fields correctly.');
@@ -1215,12 +1403,16 @@ class TransactionCreate extends Component
 
             // If moving to step 4 (final review)
             if ($this->step === 4) {
-                // Auto-calculate cash denominations for cash transactions
+                // DO NOT auto-calculate cash denominations here - preserve manual entries
+                // Just ensure we have the denominations for preview
                 if (
-                    in_array($this->transactionType, ['withdrawal', 'cash_deposit'])
-                    && $this->cashHandlingMethod === 'cash' && $this->amount
+                    in_array($this->transactionType, ['withdrawal', 'cash_deposit']) &&
+                    $this->cashHandlingMethod === 'cash'
                 ) {
-                    $this->calculateCashDenominations((float) $this->amount);
+                    // Log denominations before preview
+                    Log::info('Preparing transaction preview with denominations', [
+                        'denominations' => $this->cashDenominations
+                    ]);
                 }
 
                 $this->showConfirmation = true;
@@ -1229,6 +1421,22 @@ class TransactionCreate extends Component
         }
     }
 
+    public function previousStep()
+    {
+        if ($this->step > 1) {
+            $this->step--;
+
+            // If going back from step 4, hide confirmation
+            if ($this->step === 3) {
+                $this->showConfirmation = false;
+            }
+
+            // If going back from step 3, hide beneficiary section if not applicable
+            if ($this->step === 2 && !in_array($this->transactionType, ['transfer', 'bill_payment'])) {
+                $this->showBeneficiarySection = false;
+            }
+        }
+    }
 
     // AUTO SUPERVISOR APPROVAL WHEN AMOUNT HITS TRANSACTION LIMIT
     private function checkAutoSupervisorApproval()
@@ -1260,23 +1468,6 @@ class TransactionCreate extends Component
 
             session()->flash('info', 'Supervisor approval required for amounts above ' . number_format($tellerLimit, 2));
             return redirect()->route('transactions.index');
-        }
-    }
-
-    public function previousStep()
-    {
-        if ($this->step > 1) {
-            $this->step--;
-
-            // If going back from step 4, hide confirmation
-            if ($this->step === 3) {
-                $this->showConfirmation = false;
-            }
-
-            // If going back from step 3, hide beneficiary section if not applicable
-            if ($this->step === 2 && !in_array($this->transactionType, ['transfer', 'bill_payment'])) {
-                $this->showBeneficiarySection = false;
-            }
         }
     }
 
@@ -1440,21 +1631,8 @@ class TransactionCreate extends Component
         }
     }
 
-    public function getTotalCashCount()
-    {
-        if (empty($this->cashDenominations)) {
-            return '0.00';
-        }
-
-        $total = 0;
-        foreach ($this->cashDenominations as $denomination) {
-            $total += $denomination['denomination'] * $denomination['count'];
-        }
-        return number_format($total, 2);
-    }
-
     /**
-     * Prepare transaction preview with limit information
+     * Prepare transaction preview with limit information - UPDATED
      */
     private function prepareTransactionPreview()
     {
@@ -1477,6 +1655,15 @@ class TransactionCreate extends Component
             $balanceAfter -= (float) $this->amount;
         } elseif (in_array($this->transactionType, ['deposit', 'cash_deposit', 'cheque_deposit', 'initial_deposit'])) {
             $balanceAfter += (float) $this->amount;
+        }
+
+        // Ensure cash denominations are properly formatted for preview
+        $previewDenominations = [];
+        foreach ($this->cashDenominations as $denom) {
+            $previewDenominations[] = [
+                'denomination' => (float) $denom['denomination'],
+                'count' => (int) ($denom['count'] ?? 0),
+            ];
         }
 
         $this->transactionPreview = [
@@ -1533,7 +1720,7 @@ class TransactionCreate extends Component
                 'email' => $this->emailReceipt,
                 'sms' => $this->smsReceipt,
             ],
-            'cash_denominations' => $this->cashDenominations,
+            'cash_denominations' => $previewDenominations, // Use the formatted version
             'metadata' => $this->prepareMetadata(),
             'requires_supervisor' => $this->requiresSupervisorApproval || $this->supervisorApproval,
             'supervisor_auto_assigned' => $this->requiresSupervisorApproval,
@@ -1604,7 +1791,20 @@ class TransactionCreate extends Component
             case 'cash_deposit':
                 $metadata['cash_handling_method'] = $this->cashHandlingMethod;
                 $metadata['cash_reference'] = $this->cashReferenceNumber;
-                $metadata['cash_denominations'] = $this->cashDenominations;
+
+                // Only include denominations that have counts > 0
+                $activeDenominations = [];
+                foreach ($this->cashDenominations as $denom) {
+                    if (($denom['count'] ?? 0) > 0) {
+                        $activeDenominations[] = [
+                            'denomination' => $denom['denomination'],
+                            'count' => (int) $denom['count'],
+                            'subtotal' => $denom['denomination'] * $denom['count']
+                        ];
+                    }
+                }
+                $metadata['cash_denominations'] = $activeDenominations;
+                $metadata['cash_total'] = $this->getTotalCashFloat();
                 break;
 
             case 'cheque_deposit':
@@ -1894,6 +2094,9 @@ class TransactionCreate extends Component
 
     public function resetForm()
     {
+        // Store current denominations before reset
+        $currentDenominations = $this->cashDenominations;
+
         $this->reset([
             'transactionType',
             'customerId',
@@ -1949,7 +2152,6 @@ class TransactionCreate extends Component
             'showConfirmation',
             'isProcessing',
             'transactionPreview',
-            'cashDenominations',
             'accountSearch',
             'selectedCustomer',
             'selectedAccount',
@@ -1967,7 +2169,13 @@ class TransactionCreate extends Component
         $this->transactionInitiator = 'self';
         $this->step = 1;
         $this->totalSteps = 4;
-        $this->initializeCashDenominations();
+
+        // Restore denominations if they existed
+        if (!empty($currentDenominations)) {
+            $this->cashDenominations = $currentDenominations;
+        } else {
+            $this->initializeCashDenominations();
+        }
     }
 
     private function updateAvailableBalance()

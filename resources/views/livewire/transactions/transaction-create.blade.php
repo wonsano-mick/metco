@@ -256,7 +256,7 @@
                                 </div>
 
                                 <!-- Cash Denominations (for cash transactions) -->
-                                @if (in_array($transactionType, ['withdrawal', 'cash_deposit']) && $cashHandlingMethod === 'cash')
+                                {{-- @if (in_array($transactionType, ['withdrawal', 'cash_deposit']) && $cashHandlingMethod === 'cash')
                                     <div class="bg-white rounded-lg border border-gray-200 p-4">
                                         <h4 class="font-medium text-gray-900 mb-3">Cash Denominations</h4>
                                         <div class="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-3">
@@ -285,6 +285,111 @@
                                                 </span>
                                             </div>
                                         </div>
+                                    </div>
+                                @endif --}}
+                                <!-- Cash Denominations (for cash transactions) -->
+                                @if (in_array($transactionType, ['withdrawal', 'cash_deposit']) && $cashHandlingMethod === 'cash')
+                                    <div class="bg-white rounded-lg border border-gray-200 p-4">
+                                        <h4 class="font-medium text-gray-900 mb-3 flex items-center">
+                                            <i class="fas fa-coins mr-2 text-blue-600"></i>
+                                            Cash Denominations Summary
+                                        </h4>
+
+                                        @php
+                                            $hasDenominations = false;
+                                            foreach ($cashDenominations as $denom) {
+                                                if ($denom['count'] > 0) {
+                                                    $hasDenominations = true;
+                                                    break;
+                                                }
+                                            }
+                                        @endphp
+
+                                        @if ($hasDenominations)
+                                            <div
+                                                class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-6 gap-3">
+                                                @foreach ($cashDenominations as $denomination)
+                                                    @if ($denomination['count'] > 0)
+                                                        <div
+                                                            class="bg-gradient-to-br from-gray-50 to-gray-100 border border-gray-200 rounded-lg p-3 text-center shadow-sm">
+                                                            <div class="text-sm text-gray-500 mb-1">Denomination</div>
+                                                            <div class="text-xl font-bold text-gray-900">
+                                                                {{ number_format($denomination['denomination'], 2) }}
+                                                            </div>
+                                                            <div
+                                                                class="flex items-center justify-center mt-2 space-x-2">
+                                                                <span class="text-sm text-gray-600">Count:</span>
+                                                                <span
+                                                                    class="text-lg font-semibold text-blue-600">{{ $denomination['count'] }}</span>
+                                                            </div>
+                                                            <div class="mt-2 pt-2 border-t border-gray-200">
+                                                                <div class="text-xs text-gray-500">Subtotal</div>
+                                                                <div class="text-base font-medium text-gray-900">
+                                                                    {{ number_format($denomination['denomination'] * $denomination['count'], 2) }}
+                                                                </div>
+                                                            </div>
+                                                        </div>
+                                                    @endif
+                                                @endforeach
+                                            </div>
+
+                                            <div class="mt-6 pt-4 border-t-2 border-gray-200">
+                                                <div
+                                                    class="flex justify-between items-center bg-blue-50 p-4 rounded-lg">
+                                                    <div>
+                                                        <span class="text-lg font-semibold text-gray-900">Total
+                                                            Cash:</span>
+                                                        <span class="ml-2 text-sm text-gray-600">(Sum of all
+                                                            denominations)</span>
+                                                    </div>
+                                                    <div class="text-3xl font-bold text-blue-600">
+                                                        {{ $currency }} {{ $this->getTotalCashCount() }}
+                                                    </div>
+                                                </div>
+
+                                                <!-- Verification that total matches transaction amount -->
+                                                @if (abs($this->getTotalCashFloat() - (float) $amount) > 0.01)
+                                                    <div
+                                                        class="mt-3 bg-yellow-50 border border-yellow-200 rounded-md p-3">
+                                                        <p class="text-sm text-yellow-700 flex items-center">
+                                                            <i
+                                                                class="fas fa-exclamation-triangle mr-2 text-yellow-500"></i>
+                                                            <strong>Note:</strong> Total cash
+                                                            ({{ $this->getTotalCashCount() }}) does not match
+                                                            transaction amount ({{ number_format($amount, 2) }}).
+                                                            Please verify with customer.
+                                                        </p>
+                                                    </div>
+                                                @else
+                                                    <div
+                                                        class="mt-3 bg-green-50 border border-green-200 rounded-md p-3">
+                                                        <p class="text-sm text-green-700 flex items-center">
+                                                            <i class="fas fa-check-circle mr-2 text-green-500"></i>
+                                                            Cash total matches transaction amount
+                                                        </p>
+                                                    </div>
+                                                @endif
+                                            </div>
+                                        @else
+                                            <!-- No denominations entered -->
+                                            <div class="bg-gray-50 border border-gray-200 rounded-lg p-8 text-center">
+                                                <i class="fas fa-coins text-4xl text-gray-300 mb-3"></i>
+                                                <p class="text-gray-500">No cash denominations were recorded for this
+                                                    transaction.</p>
+                                                <p class="text-sm text-gray-400 mt-1">The transaction amount will be
+                                                    processed as a single cash entry.</p>
+                                            </div>
+
+                                            <div class="mt-4 pt-4 border-t border-gray-200">
+                                                <div class="flex justify-between items-center">
+                                                    <span class="text-lg font-semibold text-gray-900">Transaction
+                                                        Amount:</span>
+                                                    <span class="text-2xl font-bold text-blue-600">
+                                                        {{ $currency }} {{ number_format($amount, 2) }}
+                                                    </span>
+                                                </div>
+                                            </div>
+                                        @endif
                                     </div>
                                 @endif
 
@@ -1058,7 +1163,7 @@
                                             @endif
                                         </div>
 
-                                        <!-- Description -->
+                                        {{-- <!-- Description -->
                                         <div class="mt-4">
                                             <label for="description" class="block text-sm font-medium text-gray-700">
                                                 Description <span class="text-red-500">*</span>
@@ -1069,196 +1174,311 @@
                                             @error('description')
                                                 <p class="mt-1 text-sm text-red-600">{{ $message }}</p>
                                             @enderror
-                                        </div>
+                                        </div> --}}
+                                    </div>
 
+                                    <div class="mt-4 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                                        <!-- Description -->
+                                        <div>
+                                            <label for="description" class="block text-sm font-medium text-gray-700">
+                                                Description <span class="text-red-500">*</span>
+                                            </label>
+                                            <input type="text" wire:model="description" id="description"
+                                                class="professional-input block w-full pl-16 pr-4 py-3 text-base border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                                                placeholder="Enter transaction description...">
+                                            @error('description')
+                                                <p class="mt-1 text-sm text-red-600">{{ $message }}</p>
+                                            @enderror
+                                        </div>
                                         <!-- Type-specific Fields -->
                                         @if (in_array($transactionType, ['withdrawal', 'cash_deposit']))
-                                            <div class="mt-4 grid grid-cols-1 md:grid-cols-2 gap-4">
-                                                <div>
-                                                    <label for="cashHandlingMethod"
-                                                        class="block text-sm font-medium text-gray-700">
-                                                        Method <span class="text-red-500">*</span>
-                                                    </label>
-                                                    <select wire:model="cashHandlingMethod" id="cashHandlingMethod"
-                                                        class="professional-input block w-full pl-16 pr-4 py-3 text-base border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent">
-                                                        <option value="cash">Cash</option>
-                                                        <option value="cheque">Cheque</option>
-                                                    </select>
-                                                    @error('cashHandlingMethod')
-                                                        <p class="mt-1 text-sm text-red-600">{{ $message }}</p>
-                                                    @enderror
-                                                </div>
-
-                                                <div>
-                                                    <label for="cashReferenceNumber"
-                                                        class="block text-sm font-medium text-gray-700">
-                                                        Reference Number <span class="text-red-500">*</span>
-                                                    </label>
-                                                    <input type="text" wire:model="cashReferenceNumber"
-                                                        id="cashReferenceNumber"
-                                                        class="professional-input block w-full pl-16 pr-4 py-3 text-base border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                                                        placeholder="e.g., Receipt #, Voucher #">
-                                                    @error('cashReferenceNumber')
-                                                        <p class="mt-1 text-sm text-red-600">{{ $message }}</p>
-                                                    @enderror
-                                                </div>
-                                            </div>
-                                        @endif
-
-                                        @if ($transactionType === 'cheque_deposit')
-                                            <div class="mt-4 grid grid-cols-1 md:grid-cols-2 gap-4">
-                                                <div>
-                                                    <label for="chequeNumber"
-                                                        class="block text-sm font-medium text-gray-700">
-                                                        Cheque Number <span class="text-red-500">*</span>
-                                                    </label>
-                                                    <input type="text" wire:model="chequeNumber" id="chequeNumber"
-                                                        class="professional-input block w-full pl-16 pr-4 py-3 text-base border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                                                        placeholder="Cheque number">
-                                                    @error('chequeNumber')
-                                                        <p class="mt-1 text-sm text-red-600">{{ $message }}</p>
-                                                    @enderror
-                                                </div>
-
-                                                <div>
-                                                    <label for="drawerBank"
-                                                        class="block text-sm font-medium text-gray-700">
-                                                        Drawer Bank <span class="text-red-500">*</span>
-                                                    </label>
-                                                    <input type="text" wire:model="drawerBank" id="drawerBank"
-                                                        class="professional-input block w-full pl-16 pr-4 py-3 text-base border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                                                        placeholder="Bank name">
-                                                    @error('drawerBank')
-                                                        <p class="mt-1 text-sm text-red-600">{{ $message }}</p>
-                                                    @enderror
-                                                </div>
-                                            </div>
-                                        @endif
-
-                                        @if ($transactionType === 'loan_payment')
-                                            <div class="mt-4">
-                                                <label for="loanAccountNumber"
+                                            {{-- <div class="mt-4 grid grid-cols-1 md:grid-cols-2 gap-4"> --}}
+                                            <div>
+                                                <label for="cashHandlingMethod"
                                                     class="block text-sm font-medium text-gray-700">
-                                                    Loan Account Number <span class="text-red-500">*</span>
+                                                    Method <span class="text-red-500">*</span>
                                                 </label>
-                                                <input type="text" wire:model="loanAccountNumber"
-                                                    id="loanAccountNumber"
-                                                    class="professional-input block w-full pl-16 pr-4 py-3 text-base border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                                                    placeholder="Loan account number">
-                                                @error('loanAccountNumber')
+                                                <select wire:model.live="cashHandlingMethod" id="cashHandlingMethod"
+                                                    class="professional-input block w-full pl-16 pr-4 py-3 text-base border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent">
+                                                    <option value=""></option>
+                                                    <option value="cash">Cash</option>
+                                                    <option value="cheque">Cheque</option>
+                                                </select>
+                                                @error('cashHandlingMethod')
                                                     <p class="mt-1 text-sm text-red-600">{{ $message }}</p>
                                                 @enderror
                                             </div>
-                                        @endif
 
-                                        @if ($transactionType === 'fee_collection')
-                                            <div class="mt-4 grid grid-cols-1 md:grid-cols-2 gap-4">
-                                                <div>
-                                                    <label for="feeType"
-                                                        class="block text-sm font-medium text-gray-700">
-                                                        Fee Type <span class="text-red-500">*</span>
-                                                    </label>
-                                                    <select wire:model="feeType" id="feeType"
-                                                        class="professional-input block w-full pl-16 pr-4 py-3 text-base border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent">
-                                                        <option value="">Select Fee Type</option>
-                                                        @foreach ($feeTypes as $value => $label)
-                                                            <option value="{{ $value }}">{{ $label }}
-                                                            </option>
-                                                        @endforeach
-                                                    </select>
-                                                    @error('feeType')
-                                                        <p class="mt-1 text-sm text-red-600">{{ $message }}</p>
-                                                    @enderror
-                                                </div>
-
-                                                <div>
-                                                    <label for="feeDescription"
-                                                        class="block text-sm font-medium text-gray-700">
-                                                        Fee Description <span class="text-red-500">*</span>
-                                                    </label>
-                                                    <input type="text" wire:model="feeDescription"
-                                                        id="feeDescription"
-                                                        class="professional-input block w-full pl-16 pr-4 py-3 text-base border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                                                        placeholder="Description of the fee">
-                                                    @error('feeDescription')
-                                                        <p class="mt-1 text-sm text-red-600">{{ $message }}</p>
-                                                    @enderror
-                                                </div>
+                                            <div>
+                                                <label for="cashReferenceNumber"
+                                                    class="block text-sm font-medium text-gray-700">
+                                                    Reference Number <span class="text-red-500">*</span>
+                                                </label>
+                                                <input type="text" wire:model="cashReferenceNumber"
+                                                    id="cashReferenceNumber"
+                                                    class="professional-input block w-full pl-16 pr-4 py-3 text-base border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                                                    placeholder="e.g., Receipt #, Voucher #">
+                                                @error('cashReferenceNumber')
+                                                    <p class="mt-1 text-sm text-red-600">{{ $message }}</p>
+                                                @enderror
                                             </div>
-                                        @endif
-
-                                        @if ($transactionType === 'adjustment')
-                                            <div class="mt-4 grid grid-cols-1 md:grid-cols-2 gap-4">
-                                                <div>
-                                                    <label for="adjustmentType"
-                                                        class="block text-sm font-medium text-gray-700">
-                                                        Adjustment Type <span class="text-red-500">*</span>
-                                                    </label>
-                                                    <select wire:model="adjustmentType" id="adjustmentType"
-                                                        class="professional-input block w-full pl-16 pr-4 py-3 text-base border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent">
-                                                        <option value="">Select Adjustment Type</option>
-                                                        @foreach ($adjustmentTypes as $value => $label)
-                                                            <option value="{{ $value }}">{{ $label }}
-                                                            </option>
-                                                        @endforeach
-                                                    </select>
-                                                    @error('adjustmentType')
-                                                        <p class="mt-1 text-sm text-red-600">{{ $message }}</p>
-                                                    @enderror
-                                                </div>
-
-                                                <div>
-                                                    <label for="adjustmentReason"
-                                                        class="block text-sm font-medium text-gray-700">
-                                                        Adjustment Reason <span class="text-red-500">*</span>
-                                                    </label>
-                                                    <input type="text" wire:model="adjustmentReason"
-                                                        id="adjustmentReason"
-                                                        class="professional-input block w-full pl-16 pr-4 py-3 text-base border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                                                        placeholder="Reason for adjustment">
-                                                    @error('adjustmentReason')
-                                                        <p class="mt-1 text-sm text-red-600">{{ $message }}</p>
-                                                    @enderror
-                                                </div>
-                                            </div>
-                                        @endif
-
-                                        @if ($transactionType === 'bill_payment')
-                                            <div class="mt-4 grid grid-cols-1 md:grid-cols-2 gap-4">
-                                                <div>
-                                                    <label for="billType"
-                                                        class="block text-sm font-medium text-gray-700">
-                                                        Bill Type <span class="text-red-500">*</span>
-                                                    </label>
-                                                    <select wire:model="billType" id="billType"
-                                                        class="professional-input block w-full pl-16 pr-4 py-3 text-base border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent">
-                                                        <option value="">Select Bill Type</option>
-                                                        @foreach ($billTypes as $value => $label)
-                                                            <option value="{{ $value }}">{{ $label }}
-                                                            </option>
-                                                        @endforeach
-                                                    </select>
-                                                    @error('billType')
-                                                        <p class="mt-1 text-sm text-red-600">{{ $message }}</p>
-                                                    @enderror
-                                                </div>
-
-                                                <div>
-                                                    <label for="billAccountNumber"
-                                                        class="block text-sm font-medium text-gray-700">
-                                                        Bill Account Number <span class="text-red-500">*</span>
-                                                    </label>
-                                                    <input type="text" wire:model="billAccountNumber"
-                                                        id="billAccountNumber"
-                                                        class="professional-input block w-full pl-16 pr-4 py-3 text-base border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                                                        placeholder="Account number with biller">
-                                                    @error('billAccountNumber')
-                                                        <p class="mt-1 text-sm text-red-600">{{ $message }}</p>
-                                                    @enderror
-                                                </div>
-                                            </div>
+                                            {{-- </div> --}}
                                         @endif
                                     </div>
+                                    <!-- Cash Denominations Input Section -->
+                                    @if ($cashHandlingMethod === 'cash' && in_array($transactionType, ['withdrawal', 'cash_deposit']))
+                                        <div class="mt-6 bg-white rounded-lg border border-gray-200 p-6 w-full">
+                                            <h4 class="font-medium text-gray-900 mb-4 flex items-center">
+                                                <i class="fas fa-coins mr-2 text-blue-600"></i>
+                                                Cash Denominations
+                                            </h4>
+
+                                            <!-- Auto-calculate toggle -->
+                                            <div
+                                                class="mb-4 flex items-center justify-between bg-blue-50 p-3 rounded-lg w-full">
+                                                {{-- <div class="flex items-center">
+                                                        <input type="checkbox"
+                                                            wire:model.live="autoCalculateDenominations"
+                                                            id="autoCalculate"
+                                                            class="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded">
+                                                        <label for="autoCalculate"
+                                                            class="ml-2 block text-sm text-blue-900">
+                                                            Auto-calculate denominations from amount
+                                                        </label>
+                                                    </div> --}}
+                                                @if ($autoCalculateDenominations)
+                                                    <span class="text-xs text-blue-600">
+                                                        <i class="fas fa-magic mr-1"></i>
+                                                        Denominations will auto-calculate when you change amount
+                                                    </span>
+                                                @else
+                                                    <span class="text-xs text-blue-600">
+                                                        <i class="fas fa-pencil-alt mr-1"></i>
+                                                        Enter denominations manually
+                                                    </span>
+                                                @endif
+                                            </div>
+
+                                            <!-- Denomination Input Grid - Full Width with better spacing -->
+                                            <div
+                                                class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4 w-full">
+                                                @foreach ($cashDenominations as $index => $denomination)
+                                                    <div class="bg-gray-50 border border-gray-200 rounded-lg p-4">
+                                                        <label class="block text-sm font-medium text-gray-700 mb-2">
+                                                            {{ number_format($denomination['denomination'], 2) }}
+                                                            {{ $currency }}
+                                                        </label>
+                                                        <div class="flex flex-col space-y-2">
+                                                            <input type="number"
+                                                                wire:model.live="cashDenominations.{{ $index }}.count"
+                                                                wire:key="denom-{{ $index }}" min="0"
+                                                                step="1" value="{{ $denomination['count'] }}"
+                                                                class="block w-full px-3 py-2 text-base border-gray-300 rounded-md focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
+                                                                placeholder="Count">
+                                                            <div class="text-sm text-gray-600 text-right">
+                                                                =
+                                                                {{ number_format($denomination['denomination'] * $denomination['count'], 2) }}
+                                                            </div>
+                                                        </div>
+                                                    </div>
+                                                @endforeach
+                                            </div>
+
+                                            <!-- Running Total -->
+                                            <div class="mt-6 pt-4 border-t border-gray-200 w-full">
+                                                <div class="flex justify-between items-center">
+                                                    <div>
+                                                        <span class="text-lg font-semibold text-gray-900">Total
+                                                            Cash:</span>
+                                                        <span class="ml-2 text-sm text-gray-600">(Should equal
+                                                            transaction amount)</span>
+                                                    </div>
+                                                    <div
+                                                        class="text-2xl font-bold {{ $this->getTotalCashFloat() > 0 && abs($this->getTotalCashFloat() - (float) ($amount ?? 0)) > 0.01 ? 'text-red-600' : 'text-green-600' }}">
+                                                        {{ $currency }} {{ $this->getTotalCashCount() }}
+                                                    </div>
+                                                </div>
+
+                                                <!-- Validation Message -->
+                                                @if ($amount > 0 && abs($this->getTotalCashFloat() - (float) $amount) > 0.01)
+                                                    <div class="mt-3 bg-red-50 border border-red-200 rounded-md p-3">
+                                                        <p class="text-sm text-red-600 flex items-center">
+                                                            <i class="fas fa-exclamation-circle mr-2"></i>
+                                                            Total cash ({{ $this->getTotalCashCount() }}) does not
+                                                            match transaction amount
+                                                            ({{ number_format($amount, 2) }})
+                                                        </p>
+                                                    </div>
+                                                @endif
+                                            </div>
+
+                                            <!-- Quick Fill Buttons -->
+                                            <div class="mt-4 flex flex-wrap gap-2">
+                                                <button type="button" wire:click="quickFillDenominations('largest')"
+                                                    class="inline-flex items-center px-3 py-1.5 border border-gray-300 shadow-sm text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500">
+                                                    <i class="fas fa-arrow-up mr-1"></i> Largest Denominations
+                                                </button>
+                                                <button type="button" wire:click="quickFillDenominations('balanced')"
+                                                    class="inline-flex items-center px-3 py-1.5 border border-gray-300 shadow-sm text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500">
+                                                    <i class="fas fa-balance-scale mr-1"></i> Balanced
+                                                </button>
+                                                <button type="button" wire:click="clearDenominations"
+                                                    class="inline-flex items-center px-3 py-1.5 border border-gray-300 shadow-sm text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500">
+                                                    <i class="fas fa-eraser mr-1"></i> Clear All
+                                                </button>
+                                            </div>
+                                        </div>
+                                    @endif
+                                    @if ($transactionType === 'cheque_deposit')
+                                        <div class="mt-4 grid grid-cols-1 md:grid-cols-2 gap-4">
+                                            <div>
+                                                <label for="chequeNumber"
+                                                    class="block text-sm font-medium text-gray-700">
+                                                    Cheque Number <span class="text-red-500">*</span>
+                                                </label>
+                                                <input type="text" wire:model="chequeNumber" id="chequeNumber"
+                                                    class="professional-input block w-full pl-16 pr-4 py-3 text-base border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                                                    placeholder="Cheque number">
+                                                @error('chequeNumber')
+                                                    <p class="mt-1 text-sm text-red-600">{{ $message }}</p>
+                                                @enderror
+                                            </div>
+
+                                            <div>
+                                                <label for="drawerBank"
+                                                    class="block text-sm font-medium text-gray-700">
+                                                    Drawer Bank <span class="text-red-500">*</span>
+                                                </label>
+                                                <input type="text" wire:model="drawerBank" id="drawerBank"
+                                                    class="professional-input block w-full pl-16 pr-4 py-3 text-base border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                                                    placeholder="Bank name">
+                                                @error('drawerBank')
+                                                    <p class="mt-1 text-sm text-red-600">{{ $message }}</p>
+                                                @enderror
+                                            </div>
+                                        </div>
+                                    @endif
+
+                                    @if ($transactionType === 'loan_payment')
+                                        <div class="mt-4">
+                                            <label for="loanAccountNumber"
+                                                class="block text-sm font-medium text-gray-700">
+                                                Loan Account Number <span class="text-red-500">*</span>
+                                            </label>
+                                            <input type="text" wire:model="loanAccountNumber"
+                                                id="loanAccountNumber"
+                                                class="professional-input block w-full pl-16 pr-4 py-3 text-base border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                                                placeholder="Loan account number">
+                                            @error('loanAccountNumber')
+                                                <p class="mt-1 text-sm text-red-600">{{ $message }}</p>
+                                            @enderror
+                                        </div>
+                                    @endif
+
+                                    @if ($transactionType === 'fee_collection')
+                                        <div class="mt-4 grid grid-cols-1 md:grid-cols-2 gap-4">
+                                            <div>
+                                                <label for="feeType" class="block text-sm font-medium text-gray-700">
+                                                    Fee Type <span class="text-red-500">*</span>
+                                                </label>
+                                                <select wire:model="feeType" id="feeType"
+                                                    class="professional-input block w-full pl-16 pr-4 py-3 text-base border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent">
+                                                    <option value="">Select Fee Type</option>
+                                                    @foreach ($feeTypes as $value => $label)
+                                                        <option value="{{ $value }}">{{ $label }}
+                                                        </option>
+                                                    @endforeach
+                                                </select>
+                                                @error('feeType')
+                                                    <p class="mt-1 text-sm text-red-600">{{ $message }}</p>
+                                                @enderror
+                                            </div>
+
+                                            <div>
+                                                <label for="feeDescription"
+                                                    class="block text-sm font-medium text-gray-700">
+                                                    Fee Description <span class="text-red-500">*</span>
+                                                </label>
+                                                <input type="text" wire:model="feeDescription" id="feeDescription"
+                                                    class="professional-input block w-full pl-16 pr-4 py-3 text-base border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                                                    placeholder="Description of the fee">
+                                                @error('feeDescription')
+                                                    <p class="mt-1 text-sm text-red-600">{{ $message }}</p>
+                                                @enderror
+                                            </div>
+                                        </div>
+                                    @endif
+
+                                    @if ($transactionType === 'adjustment')
+                                        <div class="mt-4 grid grid-cols-1 md:grid-cols-2 gap-4">
+                                            <div>
+                                                <label for="adjustmentType"
+                                                    class="block text-sm font-medium text-gray-700">
+                                                    Adjustment Type <span class="text-red-500">*</span>
+                                                </label>
+                                                <select wire:model="adjustmentType" id="adjustmentType"
+                                                    class="professional-input block w-full pl-16 pr-4 py-3 text-base border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent">
+                                                    <option value="">Select Adjustment Type</option>
+                                                    @foreach ($adjustmentTypes as $value => $label)
+                                                        <option value="{{ $value }}">{{ $label }}
+                                                        </option>
+                                                    @endforeach
+                                                </select>
+                                                @error('adjustmentType')
+                                                    <p class="mt-1 text-sm text-red-600">{{ $message }}</p>
+                                                @enderror
+                                            </div>
+
+                                            <div>
+                                                <label for="adjustmentReason"
+                                                    class="block text-sm font-medium text-gray-700">
+                                                    Adjustment Reason <span class="text-red-500">*</span>
+                                                </label>
+                                                <input type="text" wire:model="adjustmentReason"
+                                                    id="adjustmentReason"
+                                                    class="professional-input block w-full pl-16 pr-4 py-3 text-base border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                                                    placeholder="Reason for adjustment">
+                                                @error('adjustmentReason')
+                                                    <p class="mt-1 text-sm text-red-600">{{ $message }}</p>
+                                                @enderror
+                                            </div>
+                                        </div>
+                                    @endif
+
+                                    @if ($transactionType === 'bill_payment')
+                                        <div class="mt-4 grid grid-cols-1 md:grid-cols-2 gap-4">
+                                            <div>
+                                                <label for="billType" class="block text-sm font-medium text-gray-700">
+                                                    Bill Type <span class="text-red-500">*</span>
+                                                </label>
+                                                <select wire:model="billType" id="billType"
+                                                    class="professional-input block w-full pl-16 pr-4 py-3 text-base border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent">
+                                                    <option value="">Select Bill Type</option>
+                                                    @foreach ($billTypes as $value => $label)
+                                                        <option value="{{ $value }}">{{ $label }}
+                                                        </option>
+                                                    @endforeach
+                                                </select>
+                                                @error('billType')
+                                                    <p class="mt-1 text-sm text-red-600">{{ $message }}</p>
+                                                @enderror
+                                            </div>
+
+                                            <div>
+                                                <label for="billAccountNumber"
+                                                    class="block text-sm font-medium text-gray-700">
+                                                    Bill Account Number <span class="text-red-500">*</span>
+                                                </label>
+                                                <input type="text" wire:model="billAccountNumber"
+                                                    id="billAccountNumber"
+                                                    class="professional-input block w-full pl-16 pr-4 py-3 text-base border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                                                    placeholder="Account number with biller">
+                                                @error('billAccountNumber')
+                                                    <p class="mt-1 text-sm text-red-600">{{ $message }}</p>
+                                                @enderror
+                                            </div>
+                                        </div>
+                                    @endif
                                 </div>
                         @endif
 
@@ -1785,47 +2005,6 @@
                                     </div>
                                 </div>
 
-                                <!-- Supervisor Approval (now part of step 3) -->
-                                {{-- <div class="bg-yellow-50 border border-yellow-100 rounded-lg p-4">
-                                    <h3 class="text-lg font-semibold text-yellow-900 mb-4 flex items-center">
-                                        <i class="fas fa-user-tie mr-2"></i>
-                                        Supervisor Approval
-                                    </h3>
-
-                                    <div class="space-y-4">
-                                        <div class="flex items-center">
-                                            <input type="checkbox" wire:model.live="supervisorApproval"
-                                                id="supervisorApproval"
-                                                class="h-4 w-4 text-yellow-600 focus:ring-yellow-500 border-gray-300 rounded">
-                                            <label for="supervisorApproval" class="ml-2 block text-sm text-gray-900">
-                                                This transaction requires supervisor approval
-                                            </label>
-                                        </div>
-
-                                        @if ($supervisorApproval)
-                                            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                                <div>
-                                                    <label for="supervisorId"
-                                                        class="block text-sm font-medium text-gray-700">
-                                                        Select Supervisor <span class="text-red-500">*</span>
-                                                    </label>
-                                                    <select wire:model="supervisorId" id="supervisorId"
-                                                        class="mt-1 block w-full pl-3 pr-10 py-2 text-base border-gray-300 focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm rounded-md">
-                                                        <option value="">Select Supervisor</option>
-                                                        @foreach ($supervisors as $supervisor)
-                                                            <option value="{{ $supervisor->id }}">
-                                                                {{ $supervisor->name }}</option>
-                                                        @endforeach
-                                                    </select>
-                                                    @error('supervisorId')
-                                                        <p class="mt-1 text-sm text-red-600">{{ $message }}</p>
-                                                    @enderror
-                                                </div>
-                                            </div>
-                                        @endif
-                                    </div>
-                                </div> --}}
-
                                 <!-- Supervisor Approval Section with Limit Info -->
                                 <div class="bg-yellow-50 border border-yellow-100 rounded-lg p-4 mb-6">
                                     <h3 class="text-lg font-semibold text-yellow-900 mb-4 flex items-center">
@@ -1929,7 +2108,7 @@
                                                         </label>
                                                         <input type="password" wire:model="supervisorPassword"
                                                             id="supervisorPassword"
-                                                            class="mt-1 focus:ring-blue-500 focus:border-blue-500 block w-full shadow-sm sm:text-sm border-gray-300 rounded-md"
+                                                            class="mt-1 block w-full pl-3 pr-10 py-2 text-base border-gray-300 focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm rounded-md"
                                                             placeholder="Enter supervisor password">
                                                         @error('supervisorPassword')
                                                             <p class="mt-1 text-sm text-red-600">{{ $message }}</p>
@@ -1956,7 +2135,7 @@
                                                     Approval Notes (Optional)
                                                 </label>
                                                 <textarea wire:model="supervisorApprovalNotes" id="supervisorApprovalNotes" rows="2"
-                                                    class="mt-1 focus:ring-blue-500 focus:border-blue-500 block w-full shadow-sm sm:text-sm border-gray-300 rounded-md"
+                                                    class="mt-1 block w-full pl-3 pr-10 py-2 text-base border-gray-300 focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm rounded-md"
                                                     placeholder="Any notes from supervisor regarding this approval"></textarea>
                                             </div>
                                         </div>
@@ -2223,6 +2402,42 @@
                     !resultsContainer.contains(event.target)) {
                     Livewire.dispatch('close-search-results');
                 }
+            });
+        });
+
+        // Livewire event listeners for denominations
+        Livewire.on('denominations-updated', () => {
+            // Optional: Add any visual feedback when denominations are updated
+            console.log('Denominations updated');
+        });
+
+        Livewire.on('notify', (message, type) => {
+            // You can implement a toast notification here
+            alert(message); // Replace with your preferred notification system
+        });
+
+        // Add input validation for denomination fields
+        document.addEventListener('DOMContentLoaded', function() {
+            const denominationInputs = document.querySelectorAll('[wire\\:input*="updateDenomination"]');
+            denominationInputs.forEach(input => {
+                input.addEventListener('keypress', function(e) {
+                    // Only allow numbers
+                    const charCode = e.which ? e.which : e.keyCode;
+                    if (charCode > 31 && (charCode < 48 || charCode > 57)) {
+                        e.preventDefault();
+                    }
+                });
+
+                input.addEventListener('blur', function(e) {
+                    // Ensure value is not negative
+                    if (parseInt(e.target.value) < 0) {
+                        e.target.value = 0;
+                        // Trigger the Livewire update
+                        e.target.dispatchEvent(new Event('input', {
+                            bubbles: true
+                        }));
+                    }
+                });
             });
         });
     </script>

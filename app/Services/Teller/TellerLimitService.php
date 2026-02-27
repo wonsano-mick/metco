@@ -6,7 +6,6 @@ use App\Models\Eloquent\User;
 use App\Models\Eloquent\Account;
 use App\Models\Eloquent\Transaction;
 use App\Models\Eloquent\TransactionLimit;
-use Illuminate\Support\Facades\Log;
 
 class TellerLimitService
 {

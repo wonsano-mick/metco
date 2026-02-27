@@ -24,7 +24,7 @@ class EnhancedTransactionService
 
     public function __construct($userId = null, $branchId = null)
     {
-        $user = auth()->user();
+        $user = Auth::user();
         
         $this->userId = $userId ?? ($user ? $user->id : null);
         $this->branchId = $branchId ?? ($user ? $user->branch_id : null);
