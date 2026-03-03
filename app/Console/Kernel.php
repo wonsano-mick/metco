@@ -26,5 +26,23 @@ class Kernel extends ConsoleKernel
             ->dailyAt('04:00')
             ->withoutOverlapping()
             ->sendOutputTo(storage_path('logs/loan-interest.log'));
+
+        // Process fees daily at 2 AM
+        $schedule->command('banking:process-automated-fees --type=fees')
+            ->dailyAt('02:00')
+            ->withoutOverlapping()
+            ->appendOutputTo(storage_path('logs/fee-processing.log'));
+
+        // Process interest daily at 3 AM
+        $schedule->command('banking:process-automated-fees --type=interest')
+            ->dailyAt('03:00')
+            ->withoutOverlapping()
+            ->appendOutputTo(storage_path('logs/interest-processing.log'));
+
+        // Month-end processing on the 1st of each month at 1 AM
+        $schedule->command('banking:process-automated-fees --type=all')
+            ->monthlyOn(1, '01:00')
+            ->withoutOverlapping()
+            ->appendOutputTo(storage_path('logs/month-end-processing.log'));
     }
 }

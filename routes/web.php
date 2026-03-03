@@ -12,6 +12,12 @@ use App\Livewire\Customers\CustomerEdit;
 use App\Livewire\Customers\CustomerIndex;
 use App\Livewire\Customers\CustomerShow;
 use App\Livewire\Dashboard;
+use App\Livewire\Fee\Configuration\FeeConfigurationCreate;
+use App\Livewire\Fee\Configuration\FeeConfigurationIndex;
+use App\Livewire\Fee\Processing\FeeProcessingIndex;
+use App\Livewire\Interest\Configuration\InterestConfigurationCreate;
+use App\Livewire\Interest\Configuration\InterestConfigurationIndex;
+use App\Livewire\Interest\Processing\InterestProcessingIndex;
 use App\Livewire\Loans\LoanApplication;
 use App\Livewire\Loans\LoanIndex;
 use App\Livewire\Loans\LoanReview;
@@ -87,11 +93,11 @@ Route::middleware('auth')->group(function () {
         Route::get('/{transaction}', ViewTransaction::class)->name('show');
     });
 
-   //Reports routes
-Route::prefix('reports')->name('reports.')->group(function () {
-    Route::get('/', ReportIndex::class)->name('index');
-    Route::get('/accounts/{accountId}/statement', AccountStatement::class)->name('accounts.statement');
-});
+    //Reports routes
+    Route::prefix('reports')->name('reports.')->group(function () {
+        Route::get('/', ReportIndex::class)->name('index');
+        Route::get('/accounts/{accountId}/statement', AccountStatement::class)->name('accounts.statement');
+    });
 
     //Loans routes
     Route::prefix('loans')->name('loans.')->group(function () {
@@ -104,6 +110,20 @@ Route::prefix('reports')->name('reports.')->group(function () {
     //Tellers routes
     Route::prefix('tellers')->name('tellers.')->group(function () {
         Route::get('/', TellerIndex::class)->name('index');
+    });
+
+    // Fee Management Routes
+    Route::prefix('fee')->name('fee.')->group(function () {
+        Route::get('/configurations', FeeConfigurationIndex::class)->name('configurations');
+        Route::get('/configurations/create', FeeConfigurationCreate::class)->name('configurations.create');
+        Route::get('/processing', FeeProcessingIndex::class)->name('processing');
+    });
+
+    // Interest Management Routes
+    Route::prefix('interest')->name('interest.')->group(function () {
+        Route::get('/configurations', InterestConfigurationIndex::class)->name('configurations');
+        Route::get('/configurations/create', InterestConfigurationCreate::class)->name('configurations.create');
+        Route::get('/processing', InterestProcessingIndex::class)->name('processing');
     });
 });
 

@@ -599,6 +599,9 @@ class ReportIndex extends Component
         }
     }
 
+    /**
+     * Load branch performance data
+     */
     private function loadBranchPerformance()
     {
         if (!$this->currentUser->isAdmin()) {
@@ -610,15 +613,21 @@ class ReportIndex extends Component
             $startOfDay = Carbon::parse($this->startDate)->startOfDay();
             $endOfDay = Carbon::parse($this->endDate)->endOfDay();
 
-            $this->branchPerformance = Branch::withCount(['customers'])
-                ->withCount(['accounts' => function ($q) {
-                    $q->where('status', 'active');
-                }])
-                ->withSum(['accounts' => function ($q) {
-                    $q->where('status', 'active');
-                }], 'current_balance')
+            // Fix: Use withCount on the relationship name that exists on Branch model
+            $this->branchPerformance = Branch::withCount(['customers']) // This now works with the added relationship
                 ->get()
                 ->map(function ($branch) use ($startOfDay, $endOfDay) {
+                    // Count active accounts
+                    $branch->accounts_count = Account::whereHas('customer', function ($q) use ($branch) {
+                        $q->where('branch_id', $branch->id);
+                    })->where('status', 'active')->count();
+
+                    // Sum account balances
+                    $branch->accounts_sum_current_balance = Account::whereHas('customer', function ($q) use ($branch) {
+                        $q->where('branch_id', $branch->id);
+                    })->where('status', 'active')->sum('current_balance');
+
+                    // Get transaction data
                     $transactions = Transaction::whereBetween('initiated_at', [$startOfDay, $endOfDay])
                         ->whereIn('status', ['completed', 'posted'])
                         ->where(function ($q) use ($branch) {
@@ -747,6 +756,442 @@ class ReportIndex extends Component
         }
 
         return $query->paginate(15);
+    }
+
+    /**
+     * Get Daily Summary Report Data
+     */
+    public function getDailySummaryProperty()
+    {
+        $startDate = Carbon::parse($this->startDate)->startOfDay();
+        $endDate = Carbon::parse($this->endDate)->endOfDay();
+        $user = $this->currentUser;
+
+        // Get all days in the range
+        $dates = [];
+        $currentDate = clone $startDate;
+        while ($currentDate <= $endDate) {
+            $dates[] = $currentDate->format('Y-m-d');
+            $currentDate->addDay();
+        }
+
+        $dailyData = [];
+
+        foreach ($dates as $date) {
+            $dayStart = Carbon::parse($date)->startOfDay();
+            $dayEnd = Carbon::parse($date)->endOfDay();
+
+            $query = Transaction::whereBetween('initiated_at', [$dayStart, $dayEnd])
+                ->whereIn('status', ['completed', 'posted']);
+
+            // Apply role-based restrictions
+            if ($user->isTeller()) {
+                $query->where(function ($q) use ($user) {
+                    $q->where('initiated_by', $user->id)
+                        ->orWhere('completed_by', $user->id);
+                });
+            } elseif (!$user->isAdmin() && $user->branch_id) {
+                $query->where(function ($q) use ($user) {
+                    $q->whereHas('sourceAccount.customer', function ($customerQuery) use ($user) {
+                        $customerQuery->where('branch_id', $user->branch_id);
+                    })->orWhereHas('destinationAccount.customer', function ($customerQuery) use ($user) {
+                        $customerQuery->where('branch_id', $user->branch_id);
+                    });
+                });
+            }
+
+            $dailyData[] = [
+                'date' => Carbon::parse($date)->format('D, M d, Y'),
+                'raw_date' => $date,
+                'transaction_count' => $query->count(),
+                'total_volume' => $query->sum('amount'),
+                'total_fees' => $query->sum('fee_amount'),
+                'total_tax' => $query->sum('tax_amount'),
+                'deposits' => (clone $query)->whereIn('type', ['deposit', 'cash_deposit', 'initial_deposit'])->sum('amount'),
+                'withdrawals' => (clone $query)->whereIn('type', ['withdrawal', 'cash_withdrawal'])->sum('amount'),
+                'transfers' => (clone $query)->whereIn('type', ['transfer', 'internal_transfer', 'external_transfer'])->sum('amount'),
+                'unique_customers' => $this->getUniqueCustomersCount($query),
+            ];
+        }
+
+        return collect($dailyData);
+    }
+
+    /**
+     * Get Monthly Summary Report Data
+     */
+    public function getMonthlySummaryProperty()
+    {
+        $startDate = Carbon::parse($this->startDate)->startOfDay();
+        $endDate = Carbon::parse($this->endDate)->endOfDay();
+        $user = $this->currentUser;
+
+        // Group by month
+        $months = [];
+        $currentDate = clone $startDate;
+
+        while ($currentDate <= $endDate) {
+            $monthKey = $currentDate->format('Y-m');
+            $monthStart = (clone $currentDate)->startOfMonth();
+            $monthEnd = (clone $currentDate)->endOfMonth();
+
+            if (!isset($months[$monthKey])) {
+                $query = Transaction::whereBetween('initiated_at', [$monthStart, $monthEnd])
+                    ->whereIn('status', ['completed', 'posted']);
+
+                // Apply role-based restrictions
+                if ($user->isTeller()) {
+                    $query->where(function ($q) use ($user) {
+                        $q->where('initiated_by', $user->id)
+                            ->orWhere('completed_by', $user->id);
+                    });
+                } elseif (!$user->isAdmin() && $user->branch_id) {
+                    $query->where(function ($q) use ($user) {
+                        $q->whereHas('sourceAccount.customer', function ($customerQuery) use ($user) {
+                            $customerQuery->where('branch_id', $user->branch_id);
+                        })->orWhereHas('destinationAccount.customer', function ($customerQuery) use ($user) {
+                            $customerQuery->where('branch_id', $user->branch_id);
+                        });
+                    });
+                }
+
+                $months[$monthKey] = [
+                    'month' => $currentDate->format('F Y'),
+                    'year' => $currentDate->format('Y'),
+                    'month_num' => $currentDate->format('m'),
+                    'transaction_count' => $query->count(),
+                    'total_volume' => $query->sum('amount'),
+                    'total_fees' => $query->sum('fee_amount'),
+                    'avg_transaction' => $query->avg('amount') ?? 0,
+                    'deposits' => (clone $query)->whereIn('type', ['deposit', 'cash_deposit', 'initial_deposit'])->sum('amount'),
+                    'withdrawals' => (clone $query)->whereIn('type', ['withdrawal', 'cash_withdrawal'])->sum('amount'),
+                    'transfers' => (clone $query)->whereIn('type', ['transfer', 'internal_transfer', 'external_transfer'])->sum('amount'),
+                    'fees_collected' => (clone $query)->where('type', 'like', '%fee%')->sum('amount'),
+                    'unique_customers' => $this->getUniqueCustomersCount($query),
+                    'peak_day' => $this->getPeakDay($monthStart, $monthEnd),
+                    'peak_volume' => $this->getPeakVolume($monthStart, $monthEnd),
+                ];
+            }
+
+            $currentDate->addMonth();
+        }
+
+        return collect(array_values($months));
+    }
+
+    /**
+     * Get Audit Trail Data
+     */
+    public function getAuditTrailProperty()
+    {
+        $startDate = Carbon::parse($this->startDate)->startOfDay();
+        $endDate = Carbon::parse($this->endDate)->endOfDay();
+
+        $query = \App\Models\Eloquent\AuditLog::with(['user'])
+            ->whereBetween('created_at', [$startDate, $endDate])
+            ->orderBy('created_at', 'desc');
+
+        // Apply filters
+        if ($this->selectedUser) {
+            $query->where('user_id', $this->selectedUser);
+        }
+
+        if ($this->selectedTransactionType) {
+            $query->where('action', $this->selectedTransactionType);
+        }
+
+        // Apply role-based restrictions
+        $user = $this->currentUser;
+        if ($user->isTeller()) {
+            // Tellers only see their own audit logs
+            $query->where('user_id', $user->id);
+        } elseif (!$user->isAdmin() && $user->branch_id) {
+            // Branch managers see logs from their branch
+            $query->whereHas('user', function ($q) use ($user) {
+                $q->where('branch_id', $user->branch_id);
+            });
+        }
+
+        return $query->paginate(20);
+    }
+
+    /**
+ * Get Account Analysis Data
+ */
+public function getAccountAnalysisProperty()
+{
+    $user = $this->currentUser;
+    
+    $query = Account::with(['customer', 'accountType']);
+     
+    // Apply branch restriction
+    if (!$user->isAdmin() && $user->branch_id) {
+        $query->whereHas('customer', function ($q) use ($user) {
+            $q->where('branch_id', $user->branch_id);
+        });
+    }
+    
+    // For tellers, only show accounts they've transacted with
+    if ($user->isTeller()) {
+        $accountIds = Transaction::where(function ($q) use ($user) {
+                $q->where('initiated_by', $user->id)
+                  ->orWhere('completed_by', $user->id);
+            })
+            ->where(function ($q) {
+                $q->whereNotNull('source_account_id')
+                  ->orWhereNotNull('destination_account_id');
+            })
+            ->get()
+            ->flatMap(function ($transaction) {
+                $ids = [];
+                if ($transaction->source_account_id) {
+                    $ids[] = $transaction->source_account_id;
+                }
+                if ($transaction->destination_account_id) {
+                    $ids[] = $transaction->destination_account_id;
+                }
+                return $ids;
+            })
+            ->unique()
+            ->values()
+            ->toArray();
+        
+        if (!empty($accountIds)) {
+            $query->whereIn('id', $accountIds);
+        } else {
+            $query->whereRaw('1 = 0'); // No results
+        }
+    }
+    
+    // Get accounts with pagination
+    $accounts = $query->paginate(20);
+    
+    // Use the accessors we defined in the Account model
+    foreach ($accounts as $account) {
+        // These will use the accessors we just added
+        $account->transactions_count = $account->transactions_count;
+        $account->transactions_total = $account->transactions_total;
+        
+        // Get last activity
+        $lastTransaction = Transaction::where(function ($q) use ($account) {
+                $q->where('source_account_id', $account->id)
+                  ->orWhere('destination_account_id', $account->id);
+            })
+            ->whereIn('status', ['completed', 'posted'])
+            ->orderBy('initiated_at', 'desc')
+            ->first();
+        
+        $account->last_activity = $lastTransaction ? $lastTransaction->initiated_at : null;
+    }
+    
+    // Calculate additional metrics
+    $totalAccounts = Account::count();
+    $activeAccounts = Account::where('status', 'active')->count();
+    
+    // Get dormant accounts (no transactions in last 3 months)
+    $threeMonthsAgo = now()->subMonths(3);
+    $activeAccountIds = Account::where('status', 'active')->pluck('id');
+    
+    $accountsWithTransactions = Transaction::where(function ($q) use ($activeAccountIds) {
+            $q->whereIn('source_account_id', $activeAccountIds)
+              ->orWhereIn('destination_account_id', $activeAccountIds);
+        })
+        ->where('initiated_at', '>=', $threeMonthsAgo)
+        ->whereIn('status', ['completed', 'posted'])
+        ->get()
+        ->flatMap(function ($transaction) {
+            $ids = [];
+            if ($transaction->source_account_id) {
+                $ids[] = $transaction->source_account_id;
+            }
+            if ($transaction->destination_account_id) {
+                $ids[] = $transaction->destination_account_id;
+            }
+            return $ids;
+        })
+        ->unique()
+        ->toArray();
+    
+    $dormantAccounts = $activeAccountIds->diff($accountsWithTransactions)->count();
+    
+    // Balance ranges
+    $balanceRanges = [
+        '0-1000' => Account::where('current_balance', '>=', 0)->where('current_balance', '<', 1000)->count(),
+        '1000-10000' => Account::where('current_balance', '>=', 1000)->where('current_balance', '<', 10000)->count(),
+        '10000-50000' => Account::where('current_balance', '>=', 10000)->where('current_balance', '<', 50000)->count(),
+        '50000-100000' => Account::where('current_balance', '>=', 50000)->where('current_balance', '<', 100000)->count(),
+        '100000+' => Account::where('current_balance', '>=', 100000)->count(),
+    ];
+    
+    return [
+        'accounts' => $accounts,
+        'summary' => [
+            'total_accounts' => $totalAccounts,
+            'active_accounts' => $activeAccounts,
+            'dormant_accounts' => $dormantAccounts,
+            'inactive_rate' => $totalAccounts > 0 ? round(($dormantAccounts / $totalAccounts) * 100, 2) : 0,
+            'avg_balance' => Account::avg('current_balance'),
+            'total_balance' => Account::sum('current_balance'),
+            'balance_ranges' => $balanceRanges,
+        ]
+    ];
+}
+
+    /**
+     * Get Revenue Report Data
+     */
+    public function getRevenueReportProperty()
+    {
+        $startDate = Carbon::parse($this->startDate)->startOfDay();
+        $endDate = Carbon::parse($this->endDate)->endOfDay();
+        $user = $this->currentUser;
+
+        // Base query for fee transactions
+        $query = Transaction::whereBetween('initiated_at', [$startDate, $endDate])
+            ->where(function ($q) {
+                $q->where('type', 'like', '%fee%')
+                    ->orWhere('type', 'interest')
+                    ->orWhere('type', 'charge')
+                    ->orWhere('type', 'commission');
+            })
+            ->whereIn('status', ['completed', 'posted']);
+
+        // Apply role-based restrictions
+        if ($user->isTeller()) {
+            $query->where(function ($q) use ($user) {
+                $q->where('initiated_by', $user->id)
+                    ->orWhere('completed_by', $user->id);
+            });
+        } elseif (!$user->isAdmin() && $user->branch_id) {
+            $query->where(function ($q) use ($user) {
+                $q->whereHas('sourceAccount.customer', function ($customerQuery) use ($user) {
+                    $customerQuery->where('branch_id', $user->branch_id);
+                })->orWhereHas('destinationAccount.customer', function ($customerQuery) use ($user) {
+                    $customerQuery->where('branch_id', $user->branch_id);
+                });
+            });
+        }
+
+        // Revenue by category
+        $byCategory = (clone $query)
+            ->select('type', DB::raw('count(*) as count'), DB::raw('sum(amount) as total'))
+            ->groupBy('type')
+            ->get();
+
+        // Revenue by day
+        $byDay = (clone $query)
+            ->select(DB::raw('DATE(initiated_at) as date'), DB::raw('sum(amount) as total'))
+            ->groupBy('date')
+            ->orderBy('date')
+            ->get();
+
+        // Revenue by branch (admin only)
+        $byBranch = [];
+        if ($user->isAdmin()) {
+            $byBranch = Branch::withCount(['customers'])
+                ->get()
+                ->map(function ($branch) use ($startDate, $endDate) {
+                    $revenue = Transaction::whereBetween('initiated_at', [$startDate, $endDate])
+                        ->where(function ($q) {
+                            $q->where('type', 'like', '%fee%')
+                                ->orWhere('type', 'interest')
+                                ->orWhere('type', 'charge')
+                                ->orWhere('type', 'commission');
+                        })
+                        ->whereIn('status', ['completed', 'posted'])
+                        ->where(function ($q) use ($branch) {
+                            $q->whereHas('sourceAccount.customer', function ($customerQuery) use ($branch) {
+                                $customerQuery->where('branch_id', $branch->id);
+                            })->orWhereHas('destinationAccount.customer', function ($customerQuery) use ($branch) {
+                                $customerQuery->where('branch_id', $branch->id);
+                            });
+                        })
+                        ->sum('amount');
+
+                    $branch->revenue = $revenue;
+                    return $branch;
+                });
+        }
+
+        return [
+            'summary' => [
+                'total_revenue' => $query->sum('amount'),
+                'total_transactions' => $query->count(),
+                'avg_revenue_per_transaction' => $query->avg('amount') ?? 0,
+                'daily_avg' => $byDay->avg('total') ?? 0,
+                'projected_monthly' => $this->calculateProjectedRevenue($byDay, $startDate, $endDate),
+            ],
+            'by_category' => $byCategory,
+            'by_day' => $byDay,
+            'by_branch' => $byBranch,
+        ];
+    }
+
+    /**
+     * Helper: Get unique customers count from transaction query
+     */
+    private function getUniqueCustomersCount($query)
+    {
+        $customerIds = (clone $query)->get()
+            ->flatMap(function ($transaction) {
+                $customers = [];
+                if ($transaction->sourceAccount && $transaction->sourceAccount->customer) {
+                    $customers[] = $transaction->sourceAccount->customer_id;
+                }
+                if ($transaction->destinationAccount && $transaction->destinationAccount->customer) {
+                    $customers[] = $transaction->destinationAccount->customer_id;
+                }
+                return $customers;
+            })
+            ->unique();
+
+        return $customerIds->count();
+    }
+
+    /**
+     * Helper: Get peak day transaction count
+     */
+    private function getPeakDay($monthStart, $monthEnd)
+    {
+        $peak = Transaction::whereBetween('initiated_at', [$monthStart, $monthEnd])
+            ->whereIn('status', ['completed', 'posted'])
+            ->select(DB::raw('DATE(initiated_at) as date'), DB::raw('count(*) as count'))
+            ->groupBy('date')
+            ->orderBy('count', 'desc')
+            ->first();
+
+        return $peak ? Carbon::parse($peak->date)->format('M d') . ' (' . $peak->count . ')' : 'N/A';
+    }
+
+    /**
+     * Helper: Get peak day transaction volume
+     */
+    private function getPeakVolume($monthStart, $monthEnd)
+    {
+        $peak = Transaction::whereBetween('initiated_at', [$monthStart, $monthEnd])
+            ->whereIn('status', ['completed', 'posted'])
+            ->select(DB::raw('DATE(initiated_at) as date'), DB::raw('sum(amount) as volume'))
+            ->groupBy('date')
+            ->orderBy('volume', 'desc')
+            ->first();
+
+        return $peak ? Carbon::parse($peak->date)->format('M d') . ' (GHS ' . number_format($peak->volume, 2) . ')' : 'N/A';
+    }
+
+    /**
+     * Helper: Calculate projected monthly revenue
+     */
+    private function calculateProjectedRevenue($byDay, $startDate, $endDate)
+    {
+        if ($byDay->isEmpty()) {
+            return 0;
+        }
+
+        $daysInRange = Carbon::parse($startDate)->diffInDays(Carbon::parse($endDate)) + 1;
+        $dailyAvg = $byDay->avg('total');
+        $daysInMonth = Carbon::now()->daysInMonth;
+
+        return $dailyAvg * $daysInMonth;
     }
 
     public function exportReport($format = 'pdf')

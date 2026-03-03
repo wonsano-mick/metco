@@ -649,6 +649,7 @@
                                                                         </div>
                                                                     </div>
                                                                 </div>
+                                                                
                                                             </button>
                                                         </li>
                                                     @empty
@@ -1226,7 +1227,7 @@
                                         @endif
                                     </div>
                                     <!-- Cash Denominations Input Section -->
-                                    @if ($cashHandlingMethod === 'cash' && in_array($transactionType, ['withdrawal', 'cash_deposit']))
+                                    @if ($cashHandlingMethod === 'cash' && in_array($transactionType, ['withdrawal', 'cash_deposit', 'initial_deposit']))
                                         <div class="mt-6 bg-white rounded-lg border border-gray-200 p-6 w-full">
                                             <h4 class="font-medium text-gray-900 mb-4 flex items-center">
                                                 <i class="fas fa-coins mr-2 text-blue-600"></i>

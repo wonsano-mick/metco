@@ -163,6 +163,7 @@
         });
     </script>
     <script src="{{ asset('js/chart.min.js') }}"></script>
+     <script src="{{ asset('js/chart.js') }}"></script>
     @stack('scripts')
 </body>
 

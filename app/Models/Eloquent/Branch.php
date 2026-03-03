@@ -15,13 +15,8 @@ class Branch extends Model
 
     protected $table = 'branches';
 
-    // protected $primaryKey = 'id';
-    // public $incrementing = false;
-    // protected $keyType = 'string';
 
     protected $fillable = [
-        // 'id',
-        // 'tenant_id',
         'code',
         'name',
         'address',
@@ -39,7 +34,6 @@ class Branch extends Model
     ];
 
     protected $casts = [
-        // 'tenant_id' => 'string',
         'manager_id' => 'integer',
         'opening_date' => 'date',
         'working_hours' => 'json',
@@ -48,22 +42,6 @@ class Branch extends Model
         'updated_at' => 'datetime',
         'deleted_at' => 'datetime',
     ];
-
-    // protected static function boot()
-    // {
-    //     parent::boot();
-
-    //     static::creating(function ($model) {
-    //         if (empty($model->id)) {
-    //             $model->id = Uuid::uuid4()->toString();
-    //         }
-    //     });
-    // }
-
-    public function tenant(): BelongsTo
-    {
-        return $this->belongsTo(Tenant::class);
-    }
 
     public function manager(): BelongsTo
     {
@@ -75,10 +53,51 @@ class Branch extends Model
         return $this->belongsTo(User::class, 'branch_id');
     }
 
-    public function accounts(): HasMany
+    // public function accounts(): HasMany
+    // {
+    //     return $this->hasMany(Account::class);
+    // }
+
+    /**
+     * Get the customers belonging to this branch
+     */
+    public function customers(): HasMany
     {
-        return $this->hasMany(Account::class);
+        return $this->hasMany(Customer::class, 'branch_id');
     }
+
+     /**
+     * Get all accounts belonging to this branch through customers
+     * This is the correct relationship path: Branch -> Customer -> Account
+     */
+    public function accounts()
+    {
+        return $this->hasManyThrough(
+            Account::class,
+            Customer::class,
+            'branch_id', // Foreign key on customers table
+            'customer_id', // Foreign key on accounts table
+            'id', // Local key on branches table
+            'id' // Local key on customers table
+        );
+    }
+
+     /**
+     * Get active accounts for this branch
+     */
+    public function activeAccounts()
+    {
+        return $this->accounts()->where('status', 'active');
+    }
+
+    /**
+     * Get the total balance of all accounts in this branch
+     */
+    public function getTotalBalanceAttribute()
+    {
+        return $this->accounts()->sum('current_balance');
+    }
+
 
     public function isActive(): bool
     {

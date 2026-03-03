@@ -39,14 +39,6 @@ class AuditLog extends Model
     }
 
     /**
-     * Get the entity that owns the audit log.
-     */
-    public function entity()
-    {
-        return $this->morphTo();
-    }
-
-    /**
      * Scope query to filter by entity.
      */
     public function scopeForEntity($query, $entityType, $entityId = null)
@@ -119,5 +111,73 @@ class AuditLog extends Model
         }
 
         return $formatted;
+    }
+
+     /**
+     * Get the entity that was audited (polymorphic relationship)
+     */
+    public function entity()
+    {
+        return $this->morphTo(null, 'entity_type', 'entity_id');
+    }
+
+    /**
+     * Scope a query to only include logs for a specific user
+     */
+    public function scopeForUser($query, $userId)
+    {
+        return $query->where('user_id', $userId);
+    }
+
+    /**
+     * Scope a query to only include logs for a specific action
+     */
+    public function scopeForAction($query, $action)
+    {
+        return $query->where('action', $action);
+    }
+
+     /**
+     * Scope a query to only include logs for a specific entity type
+     */
+    public function scopeForEntityType($query, $type)
+    {
+        return $query->where('entity_type', $type);
+    }
+
+     /**
+     * Get the action badge color
+     */
+    public function getActionBadgeColorAttribute(): string
+    {
+        return match($this->action) {
+            'created' => 'green',
+            'updated' => 'blue',
+            'deleted' => 'red',
+            'login' => 'purple',
+            'logout' => 'gray',
+            default => 'gray',
+        };
+    }
+
+     /**
+     * Get a human-readable description
+     */
+    public function getDescriptionAttribute(): string
+    {
+        if (isset($this->metadata['description'])) {
+            return $this->metadata['description'];
+        }
+
+        $modelName = class_basename($this->entity_type);
+        
+        return match($this->action) {
+            'created' => "Created {$modelName} #{$this->entity_id}",
+            'updated' => "Updated {$modelName} #{$this->entity_id}",
+            'deleted' => "Deleted {$modelName} #{$this->entity_id}",
+            'login' => "User logged in",
+            'logout' => "User logged out",
+            default => "{$this->action} on {$modelName} #{$this->entity_id}",
+        };
     }
 }

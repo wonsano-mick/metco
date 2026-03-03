@@ -15,13 +15,7 @@ class Account extends Model
 
     protected $table = 'accounts';
 
-    // protected $primaryKey = 'id';
-    // public $incrementing = false;
-    // protected $keyType = 'string';
-
     protected $fillable = [
-        // 'id',
-        // 'tenant_id',
         'customer_id',
         'account_type_id',
         'account_number',
@@ -38,8 +32,6 @@ class Account extends Model
     ];
 
     protected $casts = [
-        // 'id' => 'string',
-        // 'tenant_id' => 'string',
         'customer_id' => 'integer',
         'account_type_id' => 'integer',
         'current_balance' => 'decimal:4',
@@ -51,22 +43,6 @@ class Account extends Model
         'updated_at' => 'datetime',
         'deleted_at' => 'datetime',
     ];
-
-    // protected static function boot()
-    // {
-    //     parent::boot();
-
-    //     static::creating(function ($model) {
-    //         if (empty($model->id)) {
-    //             $model->id = Uuid::uuid4()->toString();
-    //         }
-    //     });
-    // }
-
-    // public function tenant(): BelongsTo
-    // {
-    //     return $this->belongsTo(Tenant::class);
-    // } 
 
     public function user(): BelongsTo
     {
@@ -83,9 +59,52 @@ class Account extends Model
         return $this->hasMany(LedgerEntry::class);
     }
 
-    public function transactions(): HasMany
+    /**
+     * Get transactions where this account is the source
+     */
+    public function sourceTransactions(): HasMany
     {
-        return $this->hasMany(Transaction::class);
+        return $this->hasMany(Transaction::class, 'source_account_id');
+    }
+
+    /**
+     * Get transactions where this account is the destination
+     */
+    public function destinationTransactions(): HasMany
+    {
+        return $this->hasMany(Transaction::class, 'destination_account_id');
+    }
+
+    /**
+     * Get all transactions related to this account (either as source or destination)
+     * This uses a custom query instead of a relationship to avoid the account_id issue
+     */
+    public function getAllTransactionsAttribute()
+    {
+        return Transaction::where('source_account_id', $this->id)
+            ->orWhere('destination_account_id', $this->id);
+    }
+
+    /**
+     * Get count of all transactions for this account
+     */
+    public function getTransactionsCountAttribute()
+    {
+        return Transaction::where('source_account_id', $this->id)
+            ->orWhere('destination_account_id', $this->id)
+            ->whereIn('status', ['completed', 'posted'])
+            ->count();
+    }
+
+    /**
+     * Get sum of all transaction amounts for this account
+     */
+    public function getTransactionsTotalAttribute()
+    {
+        return Transaction::where('source_account_id', $this->id)
+            ->orWhere('destination_account_id', $this->id)
+            ->whereIn('status', ['completed', 'posted'])
+            ->sum('amount');
     }
 
     public function isActive(): bool
