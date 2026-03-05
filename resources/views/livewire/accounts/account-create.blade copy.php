@@ -17,7 +17,8 @@
                         </a>
                     </div>
                 </div>
-            </div>
+            </div> 
+
             <!-- Customer Type Selection -->
             <div class="px-8 py-6 border-b border-gray-200 bg-gradient-to-r from-gray-50 to-blue-50">
                 <div class="flex items-center space-x-4">
@@ -25,7 +26,11 @@
                         <button type="button" wire:click="changeStep({{ $step }})"
                             class="flex items-center group" {{ $step > $currentStep ? 'disabled' : '' }}>
                             <span
-                                class="flex items-center justify-center w-8 h-8 rounded-full  {{ $step < $currentStep ? 'bg-green-500 text-white' : '' }} {{ $step == $currentStep ? 'bg-blue-600 text-white ring-2 ring-blue-300' : '' }} {{ $step > $currentStep ? 'bg-gray-200 text-gray-600' : '' }} font-bold transition-all duration-200 group-hover:scale-110">
+                                class="flex items-center justify-center w-8 h-8 rounded-full 
+                    {{ $step < $currentStep ? 'bg-green-500 text-white' : '' }}
+                    {{ $step == $currentStep ? 'bg-blue-600 text-white ring-2 ring-blue-300' : '' }}
+                    {{ $step > $currentStep ? 'bg-gray-200 text-gray-600' : '' }} 
+                    font-bold transition-all duration-200 group-hover:scale-110">
                                 @if ($step < $currentStep)
                                     <i class="fas fa-check text-xs"></i>
                                 @else
@@ -33,14 +38,20 @@
                                 @endif
                             </span>
                             <span
-                                class="ml-2 font-medium  {{ $step <= $currentStep ? 'text-gray-900' : 'text-gray-600' }}group-hover:text-blue-600">
+                                class="ml-2 font-medium 
+                    {{ $step <= $currentStep ? 'text-gray-900' : 'text-gray-600' }}
+                    group-hover:text-blue-600">
                                 {{ $label }}
                             </span>
                         </button>
 
                         @if ($step < 4)
                             <div
-                                class="flex-1 h-px  {{ $step < $currentStep ? 'bg-green-500' : '' }} {{ $step == $currentStep - 1 ? 'bg-blue-300' : '' }} {{ $step >= $currentStep ? 'bg-gray-300' : '' }}  transition-all duration-300">
+                                class="flex-1 h-px 
+                    {{ $step < $currentStep ? 'bg-green-500' : '' }}
+                    {{ $step == $currentStep - 1 ? 'bg-blue-300' : '' }}
+                    {{ $step >= $currentStep ? 'bg-gray-300' : '' }} 
+                    transition-all duration-300">
                             </div>
                         @endif
                     @endforeach
@@ -69,7 +80,7 @@
                         <div>
                             <h3 class="text-lg font-semibold text-gray-900">1. Select Customer Type</h3>
                             <p class="text-sm text-gray-600 mt-1">Choose whether you're creating an account for an
-                                individual, organization, or joint account holders</p>
+                                individual or an organization</p>
                         </div>
                         @if ($customer_type)
                             <span class="px-3 py-1 bg-green-100 text-green-800 text-sm font-medium rounded-full">
@@ -78,10 +89,13 @@
                         @endif
                     </div>
 
-                    <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
                         <!-- Individual Customer Type -->
                         <button type="button" wire:click="$set('customer_type', 'individual')"
-                            class="p-6 border rounded-xl text-left transition-all duration-200 {{ $customer_type === 'individual' ? 'border-blue-500 bg-blue-50 ring-2 ring-blue-200' : 'border-gray-300 hover:border-blue-300 hover:bg-blue-50' }}">
+                            class="p-6 border rounded-xl text-left transition-all duration-200
+                    {{ $customer_type === 'individual'
+                        ? 'border-blue-500 bg-blue-50 ring-2 ring-blue-200'
+                        : 'border-gray-300 hover:border-blue-300 hover:bg-blue-50' }}">
                             <div class="flex items-start">
                                 <div class="flex-shrink-0">
                                     <div class="w-12 h-12 rounded-full bg-blue-100 flex items-center justify-center">
@@ -90,16 +104,16 @@
                                 </div>
                                 <div class="ml-4 flex-1">
                                     <h4 class="font-semibold text-gray-900 text-lg">Individual Account</h4>
-                                    <p class="text-gray-600 mt-2">For personal banking customers. Single account holder
-                                        with personal identification.</p>
+                                    <p class="text-gray-600 mt-2">For personal banking customers. Create accounts for
+                                        individual persons with personal identification.</p>
                                     <div class="mt-4 space-y-2">
                                         <div class="flex items-center text-sm text-gray-500">
                                             <i class="fas fa-check-circle text-green-500 mr-2"></i>
-                                            Single account holder
+                                            Personal identification required
                                         </div>
                                         <div class="flex items-center text-sm text-gray-500">
                                             <i class="fas fa-check-circle text-green-500 mr-2"></i>
-                                            Personal identification required
+                                            Simplified KYC process
                                         </div>
                                         <div class="flex items-center text-sm text-gray-500">
                                             <i class="fas fa-check-circle text-green-500 mr-2"></i>
@@ -110,40 +124,12 @@
                             </div>
                         </button>
 
-                        <!-- Joint Customer Type -->
-                        <button type="button" wire:click="$set('customer_type', 'joint')"
-                            class="p-6 border rounded-xl text-left transition-all duration-200 {{ $customer_type === 'joint' ? 'border-green-500 bg-green-50 ring-2 ring-green-200' : 'border-gray-300 hover:border-green-300 hover:bg-green-50' }}">
-                            <div class="flex items-start">
-                                <div class="flex-shrink-0">
-                                    <div class="w-12 h-12 rounded-full bg-green-100 flex items-center justify-center">
-                                        <i class="fas fa-users text-green-600 text-xl"></i>
-                                    </div>
-                                </div>
-                                <div class="ml-4 flex-1">
-                                    <h4 class="font-semibold text-gray-900 text-lg">Joint Account</h4>
-                                    <p class="text-gray-600 mt-2">For multiple individuals sharing an account. Requires
-                                        identification for all holders.</p>
-                                    <div class="mt-4 space-y-2">
-                                        <div class="flex items-center text-sm text-gray-500">
-                                            <i class="fas fa-check-circle text-green-500 mr-2"></i>
-                                            2-5 account holders
-                                        </div>
-                                        <div class="flex items-center text-sm text-gray-500">
-                                            <i class="fas fa-check-circle text-green-500 mr-2"></i>
-                                            All holders require KYC verification
-                                        </div>
-                                        <div class="flex items-center text-sm text-gray-500">
-                                            <i class="fas fa-check-circle text-green-500 mr-2"></i>
-                                            Various operating instructions (any/all to sign)
-                                        </div>
-                                    </div>
-                                </div>
-                            </div>
-                        </button>
-
                         <!-- Organizational Customer Type -->
                         <button type="button" wire:click="$set('customer_type', 'organization')"
-                            class="p-6 border rounded-xl text-left transition-all duration-200 {{ $customer_type === 'organization' ? 'border-purple-500 bg-purple-50 ring-2 ring-purple-200' : 'border-gray-300 hover:border-purple-300 hover:bg-purple-50' }}">
+                            class="p-6 border rounded-xl text-left transition-all duration-200
+                    {{ $customer_type === 'organization'
+                        ? 'border-purple-500 bg-purple-50 ring-2 ring-purple-200'
+                        : 'border-gray-300 hover:border-purple-300 hover:bg-purple-50' }}">
                             <div class="flex items-start">
                                 <div class="flex-shrink-0">
                                     <div class="w-12 h-12 rounded-full bg-purple-100 flex items-center justify-center">
@@ -153,7 +139,7 @@
                                 <div class="ml-4 flex-1">
                                     <h4 class="font-semibold text-gray-900 text-lg">Organizational Account</h4>
                                     <p class="text-gray-600 mt-2">For businesses, companies, NGOs, and other
-                                        organizations.</p>
+                                        organizations. Requires business registration documents.</p>
                                     <div class="mt-4 space-y-2">
                                         <div class="flex items-center text-sm text-gray-500">
                                             <i class="fas fa-check-circle text-purple-500 mr-2"></i>
@@ -178,13 +164,12 @@
                     @enderror
                 </div>
 
-                <!-- Step 2: Customer Selection (for Individual and Organization) -->
-                @if ($currentStep >= 2 && $customer_type && $customer_type !== 'joint' && (!$customer_id || $selectedCustomer))
+                <!-- Step 2: Customer Selection (shown only when customer type is selected) -->
+                @if ($currentStep >= 2 && $customer_type && (!$customer_id || $selectedCustomer))
                     <div class="mb-10">
                         <div class="flex justify-between items-center mb-6">
                             <div>
-                                <h3 class="text-lg font-semibold text-gray-900">2. Select
-                                    {{ ucfirst($customer_type) }}
+                                <h3 class="text-lg font-semibold text-gray-900">2. Select {{ ucfirst($customer_type) }}
                                     Customer</h3>
                                 <p class="text-sm text-gray-600 mt-1">
                                     @if ($customer_type === 'individual')
@@ -245,7 +230,7 @@
                                                     class="w-full text-left p-4 hover:bg-blue-50 transition-colors duration-150 {{ $customer['is_selectable'] ? 'hover:bg-blue-50' : 'opacity-50 cursor-not-allowed' }}"
                                                     @if (!$customer['is_selectable']) disabled @endif>
                                                     <div class="flex items-center">
-                                                        <!-- Customer/Organization Avatar -->
+                                                        <!-- Customer/Oganization Avatar -->
                                                         <div class="flex-shrink-0">
                                                             @if ($customer_type === 'individual')
                                                                 <img class="h-14 w-14 rounded-full object-cover border-2 border-gray-200"
@@ -260,7 +245,7 @@
                                                             @endif
                                                         </div>
 
-                                                        <!-- Customer/Organization Info -->
+                                                        <!-- Customer/Oganization Info -->
                                                         <div class="ml-4 flex-1">
                                                             <div class="flex justify-between items-start">
                                                                 <div>
@@ -353,7 +338,7 @@
                             <div
                                 class="{{ $customer_type === 'individual' ? 'bg-blue-50 border border-blue-200' : 'bg-purple-50 border border-purple-200' }} rounded-xl p-6">
                                 <div class="flex items-start">
-                                    <!-- Customer/Organization Avatar -->
+                                    <!-- Customer/Oganization Avatar -->
                                     <div class="flex-shrink-0">
                                         @if ($customer_type === 'individual')
                                             <img class="h-20 w-20 rounded-full object-cover border-4 border-white shadow"
@@ -510,236 +495,8 @@
                     </div>
                 @endif
 
-                <!-- Step 2: Joint Account Customer Selection (for joint accounts only) -->
-                @if ($currentStep >= 2 && $customer_type === 'joint')
-                    <div class="mb-10">
-                        <div class="flex justify-between items-center mb-6">
-                            <div>
-                                <h3 class="text-lg font-semibold text-gray-900">2. Select Joint Account Holders</h3>
-                                <p class="text-sm text-gray-600 mt-1">
-                                    Select at least 2 individual customers as joint account holders (maximum 5)
-                                </p>
-                            </div>
-                            @if (count($jointAccountHolders) >= 2)
-                                <span class="px-3 py-1 bg-green-100 text-green-800 text-sm font-medium rounded-full">
-                                    <i class="fas fa-check mr-1"></i> {{ count($jointAccountHolders) }} Holder(s)
-                                    Selected
-                                </span>
-                            @endif
-                        </div>
-
-                        <!-- Selected Holders Display -->
-                        @if (!empty($jointAccountHolders))
-                            <div class="mb-6">
-                                <h4 class="text-sm font-medium text-gray-700 mb-3">Selected Account Holders</h4>
-                                <div class="space-y-3">
-                                    @foreach ($jointAccountHolders as $index => $holder)
-                                        <div
-                                            class="flex items-center justify-between p-4 bg-green-50 border border-green-200 rounded-lg">
-                                            <div class="flex items-center">
-                                                <img class="h-12 w-12 rounded-full object-cover border-2 border-green-300"
-                                                    src="{{ $holder['profile_photo_url'] }}"
-                                                    alt="{{ $holder['full_name'] }}">
-                                                <div class="ml-4">
-                                                    <p class="font-medium text-gray-900">
-                                                        {{ $holder['full_name'] }}
-                                                        @if ($holder['is_primary'] ?? false)
-                                                            <span
-                                                                class="ml-2 px-2 py-0.5 text-xs bg-green-600 text-white rounded-full">Primary
-                                                                Holder</span>
-                                                        @endif
-                                                    </p>
-                                                    <p class="text-sm text-gray-600">{{ $holder['customer_number'] }}
-                                                        • {{ $holder['email'] }}</p>
-                                                </div>
-                                            </div>
-                                            @if ($index > 0)
-                                                {{-- Can't remove primary holder --}}
-                                                <button type="button"
-                                                    wire:click="removeJointAccountHolder({{ $index }})"
-                                                    class="text-red-600 hover:text-red-800 p-2 rounded-full hover:bg-red-50">
-                                                    <i class="fas fa-times"></i>
-                                                </button>
-                                            @endif
-                                        </div>
-                                    @endforeach
-                                </div>
-                            </div>
-                        @endif
-
-                        <!-- Add this after the selected holders display and before the search section -->
-                        @if (!empty($jointAccountHolders) && count($jointAccountHolders) >= 2)
-                            <div class="mb-6 p-4 bg-gray-50 border border-gray-200 rounded-lg">
-                                <label class="block text-sm font-medium text-gray-700 mb-3">
-                                    Account Operating Instructions *
-                                </label>
-                                <p class="text-xs text-gray-500 mb-3">Select how transactions should be authorized for
-                                    this joint account</p>
-
-                                <div class="space-y-3">
-                                    <label
-                                        class="flex items-center p-3 bg-white border rounded-lg cursor-pointer hover:bg-gray-50 {{ $jointAccountRelationship === 'any_to_sign' ? 'border-green-500 bg-green-50' : 'border-gray-300' }}">
-                                        <input type="radio" name="jointAccountRelationship" value="any_to_sign"
-                                            wire:model="jointAccountRelationship"
-                                            class="h-4 w-4 text-green-600 focus:ring-green-500 border-gray-300">
-                                        <span class="ml-3">
-                                            <span class="block font-medium text-gray-900">Any One to Sign</span>
-                                            <span class="block text-sm text-gray-500">Any single account holder can
-                                                authorize transactions</span>
-                                        </span>
-                                    </label>
-
-                                    <label
-                                        class="flex items-center p-3 bg-white border rounded-lg cursor-pointer hover:bg-gray-50 {{ $jointAccountRelationship === 'all_to_sign' ? 'border-green-500 bg-green-50' : 'border-gray-300' }}">
-                                        <input type="radio" name="jointAccountRelationship" value="all_to_sign"
-                                            wire:model="jointAccountRelationship"
-                                            class="h-4 w-4 text-green-600 focus:ring-green-500 border-gray-300">
-                                        <span class="ml-3">
-                                            <span class="block font-medium text-gray-900">All to Sign</span>
-                                            <span class="block text-sm text-gray-500">All account holders must
-                                                authorize transactions</span>
-                                        </span>
-                                    </label>
-
-                                    <label
-                                        class="flex items-center p-3 bg-white border rounded-lg cursor-pointer hover:bg-gray-50 {{ $jointAccountRelationship === 'primary_only' ? 'border-green-500 bg-green-50' : 'border-gray-300' }}">
-                                        <input type="radio" name="jointAccountRelationship" value="primary_only"
-                                            wire:model="jointAccountRelationship"
-                                            class="h-4 w-4 text-green-600 focus:ring-green-500 border-gray-300">
-                                        <span class="ml-3">
-                                            <span class="block font-medium text-gray-900">Primary Only</span>
-                                            <span class="block text-sm text-gray-500">Only the primary account holder
-                                                can authorize transactions</span>
-                                        </span>
-                                    </label>
-
-                                    <label
-                                        class="flex items-center p-3 bg-white border rounded-lg cursor-pointer hover:bg-gray-50 {{ $jointAccountRelationship === 'majority' ? 'border-green-500 bg-green-50' : 'border-gray-300' }}">
-                                        <input type="radio" name="jointAccountRelationship" value="majority"
-                                            wire:model="jointAccountRelationship"
-                                            class="h-4 w-4 text-green-600 focus:ring-green-500 border-gray-300">
-                                        <span class="ml-3">
-                                            <span class="block font-medium text-gray-900">Majority Required</span>
-                                            <span class="block text-sm text-gray-500">Majority of account holders must
-                                                authorize transactions</span>
-                                        </span>
-                                    </label>
-                                </div>
-                                @error('jointAccountRelationship')
-                                    <p class="mt-2 text-sm text-red-600">{{ $message }}</p>
-                                @enderror
-                            </div>
-                        @endif
-
-                        <!-- Search for Additional Holders -->
-                        @if (count($jointAccountHolders) < 5)
-                            <div class="mb-6">
-                                <label class="block text-sm font-medium text-gray-700 mb-3">
-                                    {{ empty($jointAccountHolders) ? 'Search and Select Primary Account Holder' : 'Add Additional Account Holder' }}
-                                </label>
-                                <div class="relative">
-                                    <input type="text" wire:model.live.debounce.500ms="jointCustomerSearch"
-                                        placeholder="Search individual customers by name, customer number, or ID..."
-                                        class="pl-12 pr-8 block w-full border border-gray-300 rounded-lg shadow-sm py-3 px-4 focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-green-500 text-base"
-                                        autocomplete="off" autofocus>
-                                    <div class="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
-                                        <i class="fas fa-search text-gray-400"></i>
-                                    </div>
-                                    @if ($jointCustomerSearch)
-                                        <button type="button" wire:click="$set('jointCustomerSearch', '')"
-                                            class="absolute inset-y-0 right-0 pr-4 flex items-center text-gray-400 hover:text-gray-600">
-                                            <i class="fas fa-times"></i>
-                                        </button>
-                                    @endif
-                                </div>
-                                <div class="mt-2 flex justify-between items-center">
-                                    <span class="text-sm text-gray-500">
-                                        @if ($jointCustomerSearch)
-                                            Searching for: "{{ $jointCustomerSearch }}"
-                                            @if ($isSearching)
-                                                <i class="fas fa-spinner fa-spin ml-2"></i>
-                                            @endif
-                                        @else
-                                            Start typing to search for customers
-                                        @endif
-                                    </span>
-                                    <button type="button" wire:click="performJointSearch"
-                                        class="text-xs bg-blue-500 hover:bg-blue-600 text-white px-3 py-1 rounded">
-                                        <i class="fas fa-search mr-1"></i> Search
-                                    </button>
-                                </div>
-                            </div>
-
-                            <!-- Customer List for Joint Account -->
-                            <div class="max-h-96 overflow-y-auto border border-gray-200 rounded-lg shadow-inner">
-                                @if (is_array($jointSearchResults) && count($jointSearchResults) > 0)
-                                    <div class="divide-y divide-gray-200">
-                                        @foreach ($jointSearchResults as $customer)
-                                            @if (!collect($jointAccountHolders)->contains('id', $customer['id']))
-                                                <button type="button"
-                                                    wire:click="{{ empty($jointAccountHolders) ? 'setPrimaryCustomer' : 'addJointAccountHolder' }}('{{ $customer['id'] }}')"
-                                                    class="w-full text-left p-4 hover:bg-green-50 transition-colors duration-150">
-                                                    <div class="flex items-center">
-                                                        <img class="h-14 w-14 rounded-full object-cover border-2 border-gray-200"
-                                                            src="{{ $customer['profile_photo_url'] }}"
-                                                            alt="{{ $customer['full_name'] }}">
-                                                        <div class="ml-4 flex-1">
-                                                            <div class="flex justify-between items-start">
-                                                                <div>
-                                                                    <p class="text-sm font-semibold text-gray-900">
-                                                                        {{ $customer['full_name'] }}
-                                                                    </p>
-                                                                    <p class="text-sm text-gray-500 mt-1">
-                                                                        {{ $customer['email'] }} •
-                                                                        {{ $customer['phone'] }}
-                                                                    </p>
-                                                                </div>
-                                                                <div class="text-right">
-                                                                    <p class="text-sm font-medium text-gray-900">
-                                                                        {{ $customer['customer_number'] }}
-                                                                    </p>
-                                                                    <p class="text-xs text-gray-500">
-                                                                        {{ $customer['existing_accounts'] }} accounts
-                                                                    </p>
-                                                                </div>
-                                                            </div>
-                                                            <div class="mt-3 flex items-center text-sm text-gray-500">
-                                                                <i class="fas fa-building mr-1"></i>
-                                                                {{ $customer['branch_name'] }}
-                                                                <span class="mx-2">•</span>
-                                                                <span
-                                                                    class="px-2 py-1 rounded text-xs font-medium bg-green-100 text-green-800">
-                                                                    KYC: {{ ucfirst($customer['kyc_status']) }}
-                                                                </span>
-                                                            </div>
-                                                        </div>
-                                                    </div>
-                                                </button>
-                                            @endif
-                                        @endforeach
-                                    </div>
-                                @else
-                                    <div class="p-10 text-center">
-                                        @if ($jointCustomerSearch)
-                                            <i class="fas fa-search text-5xl text-gray-300 mb-4"></i>
-                                            <p class="text-gray-500 text-lg">No customers found for
-                                                "{{ $jointCustomerSearch }}"</p>
-                                            <p class="text-sm text-gray-400 mt-1">Try a different search term</p>
-                                        @else
-                                            <i class="fas fa-users text-5xl text-gray-300 mb-4"></i>
-                                            <p class="text-gray-500 text-lg">No individual customers found</p>
-                                            <p class="text-sm text-gray-400 mt-1">Start typing to search for customers
-                                            </p>
-                                        @endif
-                                    </div>
-                                @endif
-                            </div>
-                        @endif
-                    </div>
-                @endif
-
                 <!-- Step 3: Account Details (shown only when customer is selected) -->
-                @if ($customer_id || ($customer_type === 'joint' && !empty($jointAccountHolders)))
+                @if ($customer_id)
                     <div class="mb-10">
                         <div class="flex justify-between items-center mb-6">
                             <div>
@@ -761,27 +518,19 @@
                                 </label>
                                 <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                                     @foreach ($accountTypes as $type)
-                                        @if (
-                                            ($customer_type === 'individual' && !($type['is_for_organizations'] ?? false)) ||
-                                                ($customer_type === 'organization' && ($type['is_for_organizations'] ?? false)) ||
-                                                ($customer_type === 'joint' && ($type['is_for_joint'] ?? true)))
-                                            @php
-                                                $typeColor = match ($customer_type) {
-                                                    'individual' => 'blue',
-                                                    'organization' => 'purple',
-                                                    'joint' => 'green',
-                                                    default => 'blue',
-                                                };
-                                            @endphp
+                                        @if ($customer_type === 'individual' && !($type['is_for_organizations'] ?? false))
                                             <button type="button"
                                                 wire:click="$set('account_type_id', '{{ $type['id'] }}')"
-                                                class="p-5 border rounded-xl text-left transition-all duration-200 hover:shadow-md {{ $account_type_id == $type['id'] ? 'border-' . $typeColor . '-500 bg-' . $typeColor . '-50 ring-2 ring-' . $typeColor . '-200' : 'border-gray-300 hover:border-' . $typeColor . '-300 hover:bg-' . $typeColor . '-50' }}">
+                                                class="p-5 border rounded-xl text-left transition-all duration-200 hover:shadow-md
+                                                    {{ $account_type_id == $type['id']
+                                                        ? 'border-blue-500 bg-blue-50 ring-2 ring-blue-200'
+                                                        : 'border-gray-300 hover:border-blue-300 hover:bg-blue-50' }}">
                                                 <div class="flex items-start">
                                                     <div class="flex-shrink-0">
                                                         <div
-                                                            class="w-10 h-10 rounded-lg bg-{{ $typeColor }}-100 flex items-center justify-center">
+                                                            class="w-10 h-10 rounded-lg bg-blue-100 flex items-center justify-center">
                                                             <i
-                                                                class="fas {{ $type['icon'] ?? 'fa-wallet' }} text-{{ $typeColor }}-600"></i>
+                                                                class="fas {{ $type['icon'] ?? 'fa-wallet' }} text-blue-600"></i>
                                                         </div>
                                                     </div>
                                                     <div class="ml-3 flex-1">
@@ -790,7 +539,40 @@
                                                         <p class="text-sm text-gray-500 mt-2">
                                                             {{ $type['description'] }}</p>
                                                         <div class="mt-4 flex items-center justify-between text-sm">
-                                                            <span class="text-{{ $typeColor }}-600 font-medium">
+                                                            <span class="text-blue-600 font-medium">
+                                                                <i class="fas fa-percentage mr-1"></i>
+                                                                {{ number_format($type['interest_rate'], 2) }}%
+                                                            </span>
+                                                            <span class="text-gray-600">
+                                                                <i class="fas fa-balance-scale mr-1"></i>
+                                                                Min: {{ number_format($type['min_balance'], 2) }}
+                                                            </span>
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            </button>
+                                        @elseif ($customer_type === 'organization' && ($type['is_for_organizations'] ?? false))
+                                            <button type="button"
+                                                wire:click="$set('account_type_id', '{{ $type['id'] }}')"
+                                                class="p-5 border rounded-xl text-left transition-all duration-200 hover:shadow-md
+                                                    {{ $account_type_id == $type['id']
+                                                        ? 'border-purple-500 bg-purple-50 ring-2 ring-purple-200'
+                                                        : 'border-gray-300 hover:border-purple-300 hover:bg-purple-50' }}">
+                                                <div class="flex items-start">
+                                                    <div class="flex-shrink-0">
+                                                        <div
+                                                            class="w-10 h-10 rounded-lg bg-purple-100 flex items-center justify-center">
+                                                            <i
+                                                                class="fas {{ $type['icon'] ?? 'fa-building' }} text-purple-600"></i>
+                                                        </div>
+                                                    </div>
+                                                    <div class="ml-3 flex-1">
+                                                        <h4 class="font-semibold text-gray-900">{{ $type['name'] }}
+                                                        </h4>
+                                                        <p class="text-sm text-gray-500 mt-2">
+                                                            {{ $type['description'] }}</p>
+                                                        <div class="mt-4 flex items-center justify-between text-sm">
+                                                            <span class="text-purple-600 font-medium">
                                                                 <i class="fas fa-percentage mr-1"></i>
                                                                 {{ number_format($type['interest_rate'], 2) }}%
                                                             </span>
@@ -954,60 +736,60 @@
                             </div>
 
 
-                            <!-- Additional Fields for Organizations -->
-                            @if ($customer_type === 'organization')
-                                <div class="md:col-span-2">
-                                    <label class="block text-sm font-medium text-gray-700 mb-2">
-                                        Account Signatories
-                                        <span class="text-xs text-gray-500 font-normal">(Authorized persons for
-                                            transactions)</span>
-                                    </label>
-                                    <div class="space-y-3">
-                                        @foreach ($signatories as $index => $signatory)
-                                            <div
-                                                class="flex items-center space-x-3 p-3 bg-gray-50 rounded-lg border border-gray-200">
-                                                <input type="text"
-                                                    wire:model="signatories.{{ $index }}.name"
-                                                    placeholder="Full name"
-                                                    class="flex-1 border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500">
-                                                <input type="email"
-                                                    wire:model="signatories.{{ $index }}.email"
-                                                    placeholder="Email"
-                                                    class="flex-1 border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500">
-                                                <input type="text"
-                                                    wire:model="signatories.{{ $index }}.phone"
-                                                    placeholder="Phone"
-                                                    class="flex-1 border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500">
-                                                <button type="button"
-                                                    wire:click="removeSignatory({{ $index }})"
-                                                    class="text-red-600 hover:text-red-800">
-                                                    <i class="fas fa-times"></i>
-                                                </button>
-                                            </div>
-                                        @endforeach
-                                        <button type="button" wire:click="addSignatory"
-                                            class="inline-flex items-center px-4 py-2 border border-dashed border-gray-300 rounded-md text-sm font-medium text-gray-700 bg-white hover:bg-gray-50">
-                                            <i class="fas fa-plus mr-2"></i>
-                                            Add Signatory
-                                        </button>
+                                <!-- Additional Fields for Organizations -->
+                                @if ($customer_type === 'organization')
+                                    <div class="md:col-span-2">
+                                        <label class="block text-sm font-medium text-gray-700 mb-2">
+                                            Account Signatories
+                                            <span class="text-xs text-gray-500 font-normal">(Authorized persons for
+                                                transactions)</span>
+                                        </label>
+                                        <div class="space-y-3">
+                                            @foreach ($signatories as $index => $signatory)
+                                                <div
+                                                    class="flex items-center space-x-3 p-3 bg-gray-50 rounded-lg border border-gray-200">
+                                                    <input type="text"
+                                                        wire:model="signatories.{{ $index }}.name"
+                                                        placeholder="Full name"
+                                                        class="flex-1 border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500">
+                                                    <input type="email"
+                                                        wire:model="signatories.{{ $index }}.email"
+                                                        placeholder="Email"
+                                                        class="flex-1 border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500">
+                                                    <input type="text"
+                                                        wire:model="signatories.{{ $index }}.phone"
+                                                        placeholder="Phone"
+                                                        class="flex-1 border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500">
+                                                    <button type="button"
+                                                        wire:click="removeSignatory({{ $index }})"
+                                                        class="text-red-600 hover:text-red-800">
+                                                        <i class="fas fa-times"></i>
+                                                    </button>
+                                                </div>
+                                            @endforeach
+                                            <button type="button" wire:click="addSignatory"
+                                                class="inline-flex items-center px-4 py-2 border border-dashed border-gray-300 rounded-md text-sm font-medium text-gray-700 bg-white hover:bg-gray-50">
+                                                <i class="fas fa-plus mr-2"></i>
+                                                Add Signatory
+                                            </button>
+                                        </div>
                                     </div>
-                                </div>
-                            @endif
+                                @endif
 
-                            <!-- Notes -->
-                            <div class="md:col-span-2">
-                                <label for="notes" class="block text-sm font-medium text-gray-700 mb-2">
-                                    Notes (Optional)
-                                    <span class="text-xs text-gray-500 font-normal">(Internal notes about this
-                                        account)</span>
-                                </label>
-                                <textarea id="notes" wire:model="notes" rows="4"
-                                    class="block w-full border border-gray-300 rounded-lg shadow-sm py-3 px-4 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                                    placeholder="Any special instructions, account purpose, or additional information..."></textarea>
-                                @error('notes')
-                                    <p class="mt-2 text-sm text-red-600">{{ $message }}</p>
-                                @enderror
-                            </div>
+                                <!-- Notes -->
+                                <div class="md:col-span-2">
+                                    <label for="notes" class="block text-sm font-medium text-gray-700 mb-2">
+                                        Notes (Optional)
+                                        <span class="text-xs text-gray-500 font-normal">(Internal notes about this
+                                            account)</span>
+                                    </label>
+                                    <textarea id="notes" wire:model="notes" rows="4"
+                                        class="block w-full border border-gray-300 rounded-lg shadow-sm py-3 px-4 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                                        placeholder="Any special instructions, account purpose, or additional information..."></textarea>
+                                    @error('notes')
+                                        <p class="mt-2 text-sm text-red-600">{{ $message }}</p>
+                                    @enderror
+                                </div>
                         </div>
                     </div>
                 @endif
@@ -1064,264 +846,243 @@
                                         <p class="text-sm text-gray-500">Customer details</p>
                                     </div>
                                 </div>
-                                @if ($customer_type === 'joint')
-                                    <div class="space-y-4">
-                                        @foreach ($jointAccountHolders as $holder)
-                                            <div
-                                                class="flex items-center p-3 {{ $holder['is_primary'] ?? false ? 'bg-green-50 rounded-lg' : '' }}">
-                                                <img class="h-12 w-12 rounded-full object-cover border-2 border-gray-200"
-                                                    src="{{ $holder['profile_photo_url'] }}"
-                                                    alt="{{ $holder['full_name'] }}">
-                                                <div class="ml-3">
-                                                    <p class="font-medium text-gray-900">
-                                                        {{ $holder['full_name'] }}
-                                                        @if ($holder['is_primary'] ?? false)
-                                                            <span class="ml-2 text-xs text-green-600">(Primary)</span>
-                                                        @endif
-                                                    </p>
-                                                    <p class="text-sm text-gray-500">{{ $holder['customer_number'] }}
-                                                    </p>
-                                                </div>
-                                            </div>
-                                        @endforeach
 
-                                        <div class="pt-4 border-t border-gray-200">
-                                            <p class="text-sm text-gray-600">
-                                                <span class="font-medium">Operating Instructions:</span>
-                                                {{ $jointAccountRelationship === 'any_to_sign'
-                                                    ? 'Any One to Sign'
-                                                    : ($jointAccountRelationship === 'all_to_sign'
-                                                        ? 'All to Sign'
-                                                        : ($jointAccountRelationship === 'primary_only'
-                                                            ? 'Primary Only'
-                                                            : ($jointAccountRelationship === 'majority'
-                                                                ? 'Majority Required'
-                                                                : 'Not specified'))) }}
+                                <div class="space-y-4">
+                                    <div class="flex items-center">
+                                        @if ($customer_type === 'individual')
+                                            <img class="h-12 w-12 rounded-full"
+                                                src="{{ $selectedCustomer['profile_photo_url'] ?? $this->getDefaultProfilePhoto($selectedCustomer['full_name'] ?? 'Customer') }}"
+                                                alt="{{ $selectedCustomer['full_name'] ?? 'Customer' }}">
+                                        @else
+                                            <div
+                                                class="h-12 w-12 rounded-full bg-purple-100 flex items-center justify-center">
+                                                <i class="fas fa-building text-purple-600"></i>
+                                            </div>
+                                        @endif
+                                        <div class="ml-3">
+                                            <p class="font-medium text-gray-900">
+                                                {{ $selectedCustomer['full_name'] ?? ($selectedCustomer['name'] ?? 'Unknown Customer') }}
                                             </p>
+                                            <p class="text-sm text-gray-500">
+                                                {{ $selectedCustomer['customer_number'] ?? 'N/A' }}</p>
                                         </div>
                                     </div>
-                                @elseif ($customer_type === 'individual')
-                                    <img class="h-12 w-12 rounded-full"
-                                        src="{{ $selectedCustomer['profile_photo_url'] ?? $this->getDefaultProfilePhoto($selectedCustomer['full_name'] ?? 'Customer') }}"
-                                        alt="{{ $selectedCustomer['full_name'] ?? 'Customer' }}">
-                                @else
-                                    <div class="h-12 w-12 rounded-full bg-purple-100 flex items-center justify-center">
-                                        <i class="fas fa-building text-purple-600"></i>
-                                    </div>
-                                @endif
-                                <div class="ml-3">
-                                    <p class="font-medium text-gray-900">
-                                        {{ $selectedCustomer['full_name'] ?? ($selectedCustomer['name'] ?? 'Unknown Customer') }}
-                                    </p>
-                                    <p class="text-sm text-gray-500">
-                                        {{ $selectedCustomer['customer_number'] ?? 'N/A' }}</p>
-                                </div>
-                            </div>
 
-                            <div class="grid grid-cols-2 gap-4">
-                                <div>
-                                    <p class="text-xs text-gray-500">Email</p>
-                                    <p class="text-sm font-medium text-gray-900">
-                                        {{ $selectedCustomer['email'] ?? 'N/A' }}</p>
-                                </div>
-                                <div>
-                                    <p class="text-xs text-gray-500">Phone</p>
-                                    <p class="text-sm font-medium text-gray-900">
-                                        {{ $selectedCustomer['phone'] ?? 'N/A' }}</p>
-                                </div>
-                            </div>
-
-                            @if ($customer_type === 'organization')
-                                <div class="pt-4 border-t border-gray-200">
-                                    <p class="text-xs text-gray-500 mb-2">Organization Details</p>
                                     <div class="grid grid-cols-2 gap-4">
                                         <div>
-                                            <p class="text-xs text-gray-500">Type</p>
+                                            <p class="text-xs text-gray-500">Email</p>
                                             <p class="text-sm font-medium text-gray-900">
-                                                {{ $selectedCustomer['organization_type'] ?? 'N/A' }}</p>
+                                                {{ $selectedCustomer['email'] ?? 'N/A' }}</p>
                                         </div>
                                         <div>
-                                            <p class="text-xs text-gray-500">Industry</p>
+                                            <p class="text-xs text-gray-500">Phone</p>
                                             <p class="text-sm font-medium text-gray-900">
-                                                {{ $selectedCustomer['industry'] ?? 'N/A' }}</p>
+                                                {{ $selectedCustomer['phone'] ?? 'N/A' }}</p>
                                         </div>
                                     </div>
-                                </div>
-                            @endif
-                        </div>
-                    </div>
 
-                    <!-- Account Summary -->
-                    <div class="bg-white border border-gray-200 rounded-xl p-6 shadow-sm">
-                        <div class="flex items-center mb-4">
-                            <div
-                                class="w-10 h-10 rounded-full {{ $customer_type === 'individual' ? 'bg-blue-100' : 'bg-purple-100' }} flex items-center justify-center mr-3">
-                                <i
-                                    class="fas fa-wallet {{ $customer_type === 'individual' ? 'text-blue-600' : 'text-purple-600' }}"></i>
-                            </div>
-                            <div>
-                                <h4 class="font-semibold text-gray-900">Account Details</h4>
-                                <p class="text-sm text-gray-500">Configuration summary</p>
-                            </div>
-                        </div>
-
-                        <div class="space-y-3">
-                            <div class="flex justify-between items-center py-2 border-b border-gray-100">
-                                <span class="text-sm text-gray-600">Account Type:</span>
-                                <span
-                                    class="text-sm font-medium text-gray-900">{{ $selectedAccountType['name'] ?? 'Not Selected' }}</span>
-                            </div>
-                            <div class="flex justify-between items-center py-2 border-b border-gray-100">
-                                <span class="text-sm text-gray-600">Currency:</span>
-                                <span class="text-sm font-medium text-gray-900">{{ $currency }}</span>
-                            </div>
-                            <!-- REMOVED: Initial Deposit line -->
-                            <div class="flex justify-between items-center py-2 border-b border-gray-100">
-                                <span class="text-sm text-gray-600">Minimum Balance:</span>
-                                <span class="text-sm font-medium text-gray-900">
-                                    {{ number_format($minimum_balance, 2) }} {{ $currency }}
-                                </span>
-                            </div>
-                            <div class="flex justify-between items-center py-2 border-b border-gray-100">
-                                <span class="text-sm text-gray-600">Overdraft Limit:</span>
-                                <span class="text-sm font-medium text-gray-900">
-                                    @if ($isCurrentAccount)
-                                        {{ number_format($overdraft_limit, 2) }} {{ $currency }}
-                                    @else
-                                        <span class="text-gray-400">Not applicable (non-current account)</span>
+                                    @if ($customer_type === 'organization')
+                                        <div class="pt-4 border-t border-gray-200">
+                                            <p class="text-xs text-gray-500 mb-2">Organization Details</p>
+                                            <div class="grid grid-cols-2 gap-4">
+                                                <div>
+                                                    <p class="text-xs text-gray-500">Type</p>
+                                                    <p class="text-sm font-medium text-gray-900">
+                                                        {{ $selectedCustomer['organization_type'] ?? 'N/A' }}</p>
+                                                </div>
+                                                <div>
+                                                    <p class="text-xs text-gray-500">Industry</p>
+                                                    <p class="text-sm font-medium text-gray-900">
+                                                        {{ $selectedCustomer['industry'] ?? 'N/A' }}</p>
+                                                </div>
+                                            </div>
+                                        </div>
                                     @endif
-                                </span>
-                            </div>
-                            <div class="flex justify-between items-center py-2 border-b border-gray-100">
-                                <span class="text-sm text-gray-600">Status:</span>
-                                <span class="text-sm font-medium text-gray-900 capitalize">{{ $status }}</span>
-                            </div>
-                            @if ($notes)
-                                <div class="pt-3">
-                                    <p class="text-xs text-gray-500 mb-1">Notes:</p>
-                                    <p class="text-sm text-gray-700 bg-gray-50 p-3 rounded-lg">
-                                        {{ $notes }}</p>
                                 </div>
-                            @endif
-                        </div>
-                    </div> <!-- Close Account Summary -->
-        </div> <!-- Close grid-cols-1 lg:grid-cols-2 -->
-    </div> <!-- Close mb-10 -->
+                            </div>
 
-    <!-- Terms & Conditions -->
-    <div class="mt-8 pt-8 border-t border-gray-200">
-        <div class="flex items-start">
-            <div class="flex-shrink-0">
-                <i class="fas fa-file-contract text-blue-500 text-xl mt-1"></i>
-            </div>
-            <div class="ml-4">
-                <h4 class="text-sm font-semibold text-gray-900">Terms & Conditions</h4>
-                <div class="mt-3 bg-gray-50 p-4 rounded-lg border border-gray-200">
-                    <div class="flex items-start mb-3">
-                        <input type="checkbox" id="terms" wire:model="termsAccepted"
-                            class="h-4 w-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500 mt-1">
-                        <label for="terms" class="ml-2 block text-sm text-gray-900">
-                            I confirm that all information provided is accurate and complete.
-                            @if ($customer_type === 'individual')
-                                The customer has provided valid identification and KYC documents.
-                            @else
-                                The organization has provided valid registration documents and
-                                authorized signatories.
-                            @endif
-                        </label>
+                            <!-- Account Summary -->
+                            <div class="bg-white border border-gray-200 rounded-xl p-6 shadow-sm">
+                                <div class="flex items-center mb-4">
+                                    <div
+                                        class="w-10 h-10 rounded-full {{ $customer_type === 'individual' ? 'bg-blue-100' : 'bg-purple-100' }} flex items-center justify-center mr-3">
+                                        <i
+                                            class="fas fa-wallet {{ $customer_type === 'individual' ? 'text-blue-600' : 'text-purple-600' }}"></i>
+                                    </div>
+                                    <div>
+                                        <h4 class="font-semibold text-gray-900">Account Details</h4>
+                                        <p class="text-sm text-gray-500">Configuration summary</p>
+                                    </div>
+                                </div>
+
+                                <div class="space-y-3">
+                                    <div class="flex justify-between items-center py-2 border-b border-gray-100">
+                                        <span class="text-sm text-gray-600">Account Type:</span>
+                                        <span
+                                            class="text-sm font-medium text-gray-900">{{ $selectedAccountType['name'] ?? 'Not Selected' }}</span>
+                                    </div>
+                                    <div class="flex justify-between items-center py-2 border-b border-gray-100">
+                                        <span class="text-sm text-gray-600">Currency:</span>
+                                        <span class="text-sm font-medium text-gray-900">{{ $currency }}</span>
+                                    </div>
+                                    <!-- REMOVED: Initial Deposit line -->
+                                    <div class="flex justify-between items-center py-2 border-b border-gray-100">
+                                        <span class="text-sm text-gray-600">Minimum Balance:</span>
+                                        <span class="text-sm font-medium text-gray-900">
+                                            {{ number_format($minimum_balance, 2) }} {{ $currency }}
+                                        </span>
+                                    </div>
+                                    <div class="flex justify-between items-center py-2 border-b border-gray-100">
+                                        <span class="text-sm text-gray-600">Overdraft Limit:</span>
+                                        <span class="text-sm font-medium text-gray-900">
+                                            @if ($isCurrentAccount)
+                                                {{ number_format($overdraft_limit, 2) }} {{ $currency }}
+                                            @else
+                                                <span class="text-gray-400">Not applicable (non-current account)</span>
+                                            @endif
+                                        </span>
+                                    </div>
+                                    <div class="flex justify-between items-center py-2 border-b border-gray-100">
+                                        <span class="text-sm text-gray-600">Status:</span>
+                                        <span
+                                            class="text-sm font-medium text-gray-900 capitalize">{{ $status }}</span>
+                                    </div>
+                                    @if ($notes)
+                                        <div class="pt-3">
+                                            <p class="text-xs text-gray-500 mb-1">Notes:</p>
+                                            <p class="text-sm text-gray-700 bg-gray-50 p-3 rounded-lg">
+                                                {{ $notes }}</p>
+                                        </div>
+                                    @endif
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Terms & Conditions -->
+                        <div class="mt-8 pt-8 border-t border-gray-200">
+                            <div class="flex items-start">
+                                <div class="flex-shrink-0">
+                                    <i class="fas fa-file-contract text-blue-500 text-xl mt-1"></i>
+                                </div>
+                                <div class="ml-4">
+                                    <h4 class="text-sm font-semibold text-gray-900">Terms & Conditions</h4>
+                                    <div class="mt-3 bg-gray-50 p-4 rounded-lg border border-gray-200">
+                                        <div class="flex items-start mb-3">
+                                            <input type="checkbox" id="terms" wire:model="termsAccepted"
+                                                class="h-4 w-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500 mt-1">
+                                            <label for="terms" class="ml-2 block text-sm text-gray-900">
+                                                I confirm that all information provided is accurate and complete.
+                                                @if ($customer_type === 'individual')
+                                                    The customer has provided valid identification and KYC documents.
+                                                @else
+                                                    The organization has provided valid registration documents and
+                                                    authorized signatories.
+                                                @endif
+                                            </label>
+                                        </div>
+                                        @error('termsAccepted')
+                                            <p class="mt-2 text-sm text-red-600">{{ $message }}</p>
+                                        @enderror
+
+                                        @if ($customer_type === 'organization')
+                                            <div class="flex items-start mt-3">
+                                                <input type="checkbox" id="signatories_verified"
+                                                    wire:model="signatoriesVerified"
+                                                    class="h-4 w-4 text-purple-600 border-gray-300 rounded focus:ring-purple-500 mt-1">
+                                                <label for="signatories_verified"
+                                                    class="ml-2 block text-sm text-gray-900">
+                                                    I verify that all authorized signatories have been properly
+                                                    identified and documented.
+                                                </label>
+                                            </div>
+                                            @error('signatoriesVerified')
+                                                <p class="mt-2 text-sm text-red-600">{{ $message }}</p>
+                                            @enderror
+                                        @endif
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        <!-- Info Message about Account Creation -->
+                        <div class="mt-6 p-4 bg-blue-50 border border-blue-200 rounded-lg">
+                            <div class="flex">
+                                <div class="flex-shrink-0">
+                                    <i class="fas fa-info-circle text-blue-500 text-xl"></i>
+                                </div>
+                                <div class="ml-3">
+                                    <h3 class="text-sm font-medium text-blue-800">Important Information</h3>
+                                    <div class="mt-2 text-sm text-blue-700">
+                                        <p class="mb-1">
+                                            <i class="fas fa-check-circle mr-1 text-xs"></i>
+                                            <strong>Initial Deposit:</strong> Accounts are created with zero balance.
+                                            You can make a deposit after account creation from the account details page.
+                                        </p>
+                                        @if ($isCurrentAccount)
+                                            <p>
+                                                <i class="fas fa-check-circle mr-1 text-xs"></i>
+                                                <strong>Overdraft:</strong> This is a current account and qualifies for
+                                                overdraft facilities. The overdraft limit can be adjusted after account
+                                                creation.
+                                            </p>
+                                        @else
+                                            <p>
+                                                <i class="fas fa-check-circle mr-1 text-xs"></i>
+                                                <strong>Overdraft:</strong> This is not a current account, so overdraft
+                                                is not applicable.
+                                            </p>
+                                        @endif
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        <!-- Action Buttons -->
+                        <div class="mt-10 flex justify-between items-center pt-8 border-t border-gray-200">
+                            <div>
+                                <button type="button" wire:click="previousStep"
+                                    class="inline-flex items-center px-5 py-2.5 border border-gray-300 rounded-lg text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500">
+                                    <i class="fas fa-arrow-left mr-2"></i>
+                                    Previous Step
+                                </button>
+                            </div>
+                            <div class="flex space-x-4">
+                                <a href="{{ route('accounts.index') }}"
+                                    class="inline-flex items-center px-5 py-2.5 border border-gray-300 rounded-lg text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500">
+                                    Cancel
+                                </a>
+                                <button type="submit"
+                                    class="inline-flex items-center px-6 py-3 border border-transparent rounded-lg text-sm font-medium text-white {{ $customer_type === 'individual' ? 'bg-blue-600 hover:bg-blue-700' : 'bg-purple-600 hover:bg-purple-700' }} focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 shadow-lg">
+                                    <i class="fas fa-check-circle mr-2"></i>
+                                    Create {{ $customer_type === 'individual' ? 'Personal' : 'Organizational' }}
+                                    Account
+                                </button>
+                            </div>
+                        </div>
                     </div>
-                    @error('termsAccepted')
-                        <p class="mt-2 text-sm text-red-600">{{ $message }}</p>
-                    @enderror
-
-                    @if ($customer_type === 'organization')
-                        <div class="flex items-start mt-3">
-                            <input type="checkbox" id="signatories_verified" wire:model="signatoriesVerified"
-                                class="h-4 w-4 text-purple-600 border-gray-300 rounded focus:ring-purple-500 mt-1">
-                            <label for="signatories_verified" class="ml-2 block text-sm text-gray-900">
-                                I verify that all authorized signatories have been properly
-                                identified and documented.
-                            </label>
+                @else
+                    @if ($customer_id)
+                        <!-- Prompt to select account type -->
+                        <div class="text-center py-12">
+                            <div
+                                class="{{ $customer_type === 'individual' ? 'text-blue-400' : 'text-purple-400' }} mb-4">
+                                <i class="fas fa-wallet text-6xl"></i>
+                            </div>
+                            <h3 class="text-lg font-medium text-gray-900">Select an Account Type</h3>
+                            <p class="text-gray-500 mt-1">
+                                Please select an account type suitable for
+                                {{ $customer_type === 'individual' ? 'individual' : 'organizational' }} customers
+                            </p>
+                            <button type="button" wire:click="previousStep"
+                                class="mt-6 inline-flex items-center px-4 py-2 border border-gray-300 rounded-md text-sm font-medium text-gray-700 bg-white hover:bg-gray-50">
+                                <i class="fas fa-arrow-left mr-2"></i>
+                                Back to Customer Selection
+                            </button>
                         </div>
-                        @error('signatoriesVerified')
-                            <p class="mt-2 text-sm text-red-600">{{ $message }}</p>
-                        @enderror
                     @endif
-                </div>
-            </div>
+                @endif
+            </form>
         </div>
     </div>
-
-    <!-- Info Message about Account Creation -->
-    <div class="mt-6 p-4 bg-blue-50 border border-blue-200 rounded-lg">
-        <div class="flex">
-            <div class="flex-shrink-0">
-                <i class="fas fa-info-circle text-blue-500 text-xl"></i>
-            </div>
-            <div class="ml-3">
-                <h3 class="text-sm font-medium text-blue-800">Important Information</h3>
-                <div class="mt-2 text-sm text-blue-700">
-                    <p class="mb-1">
-                        <i class="fas fa-check-circle mr-1 text-xs"></i>
-                        <strong>Initial Deposit:</strong> Accounts are created with zero balance.
-                        You can make a deposit after account creation from the account details page.
-                    </p>
-                    @if ($isCurrentAccount)
-                        <p>
-                            <i class="fas fa-check-circle mr-1 text-xs"></i>
-                            <strong>Overdraft:</strong> This is a current account and qualifies for
-                            overdraft facilities. The overdraft limit can be adjusted after account
-                            creation.
-                        </p>
-                    @else
-                        <p>
-                            <i class="fas fa-check-circle mr-1 text-xs"></i>
-                            <strong>Overdraft:</strong> This is not a current account, so overdraft
-                            is not applicable.
-                        </p>
-                    @endif
-                </div>
-            </div>
-        </div>
-    </div>
-
-    <!-- Action Buttons -->
-    <div class="mt-10 flex justify-between items-center pt-8 border-t border-gray-200">
-        <div>
-            <button type="button" wire:click="previousStep"
-                class="inline-flex items-center px-5 py-2.5 border border-gray-300 rounded-lg text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500">
-                <i class="fas fa-arrow-left mr-2"></i>
-                Previous Step
-            </button>
-        </div>
-        <div class="flex space-x-4">
-            <a href="{{ route('accounts.create') }}"
-                class="inline-flex items-center px-5 py-2.5 border border-gray-300 rounded-lg text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500">
-                Cancel
-            </a>
-
-            @if ($account_type_id)
-                <button type="button" wire:click="save"
-                    class="inline-flex items-center px-6 py-3 border border-transparent rounded-lg text-sm font-medium text-white {{ $customer_type === 'individual' ? 'bg-blue-600 hover:bg-blue-700' : ($customer_type === 'joint' ? 'bg-green-600 hover:bg-green-700' : 'bg-purple-600 hover:bg-purple-700') }} focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 shadow-lg">
-                    <i class="fas fa-check-circle mr-2"></i>
-                    Create
-                    @if ($customer_type === 'individual')
-                        Personal
-                    @elseif($customer_type === 'joint')
-                        Joint
-                    @else
-                        Organizational
-                    @endif
-                    Account
-                </button>
-            @endif
-        </div>
-    </div>
-    @endif {{-- End of account_type_id check --}}
-    </form> {{-- Close the form --}}
-</div> {{-- Close bg-white rounded-xl --}}
-</div> {{-- Close max-w-6xl --}}
-</div> {{-- Close the main div --}}
+</div>
 
 @push('scripts')
     <script>
@@ -1535,28 +1296,6 @@
         document.addEventListener('livewire:initialized', () => {
             Livewire.on('refresh', () => {
                 // This will trigger a Livewire re-render
-            });
-        });
-    </script>
-    <script>
-        document.addEventListener('livewire:initialized', () => {
-            console.log('Livewire initialized, attaching form submit listener');
-
-            const form = document.querySelector('form[wire\\:submit\\.prevent]');
-            if (form) {
-                console.log('Form found:', form);
-
-                form.addEventListener('submit', function(e) {
-                    console.log('Form submit event triggered!', e);
-                    // Don't prevent default, let Livewire handle it
-                });
-            } else {
-                console.error('Form not found!');
-            }
-
-            // Also check all wire:click buttons
-            document.querySelectorAll('[wire\\:click]').forEach(btn => {
-                console.log('Wire:click button found:', btn.textContent.trim());
             });
         });
     </script>

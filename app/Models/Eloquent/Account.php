@@ -27,11 +27,13 @@ class Account extends Model
         'minimum_balance',
         'overdraft_limit',
         'status',
+         'metadata',
         'opened_at',
         'closed_at',
     ];
 
-    protected $casts = [
+    protected $casts = [ 
+        'metadata' => 'json',
         'customer_id' => 'integer',
         'account_type_id' => 'integer',
         'current_balance' => 'decimal:4',

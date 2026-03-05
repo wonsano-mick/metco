@@ -9,7 +9,6 @@ use App\Models\Eloquent\Branch;
 use Livewire\Attributes\Layout;
 use App\Models\Eloquent\Account;
 use App\Models\Eloquent\Customer;
-use App\Services\AuditLogService;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use App\Models\Eloquent\AccountType;
@@ -31,6 +30,13 @@ class AccountCreate extends Component
     public $customerSearch = '';
     public $selectedCustomer = null;
 
+    // NEW: Joint account properties
+    public $jointCustomers = [];
+    public $jointCustomerSearch = '';
+    public $primaryCustomerId = null;
+    public $jointAccountHolders = []; // Stores selected joint account holders
+    public $jointAccountRelationship = '';
+
     // Step 2: Account Details
     public $account_type_id = '';
     public $currency = 'GHS';
@@ -51,7 +57,7 @@ class AccountCreate extends Component
     // Computed properties
     public $selectedAccountType = null;
     public $accountTypes = [];
-    public $currencies = ['GHS', 'USD', 'EUR', 'GBP'];
+    public $currencies = ['GHS'];
     public $currencySymbol = '₵';
     public $branches = [];
     public $statusOptions = [
@@ -69,6 +75,9 @@ class AccountCreate extends Component
 
     // Flag to track if current account is selected
     public $isCurrentAccount = false;
+
+    public $jointSearchResults = [];
+    public $isSearching = false;
 
     public function mount()
     {
@@ -115,12 +124,24 @@ class AccountCreate extends Component
         $this->signatories = [
             ['name' => '', 'email' => '', 'phone' => '']
         ];
+
+        // NEW: Initialize joint account properties
+        $this->jointAccountHolders = [];
+        $this->jointSearchResults = [];
     }
 
     public function updatedCustomerType($value)
     {
         // Reset customer selection when type changes
-        $this->reset(['customer_id', 'selectedCustomer', 'account_type_id', 'selectedAccountType']);
+        $this->reset([
+            'customer_id',
+            'selectedCustomer',
+            'account_type_id',
+            'selectedAccountType',
+            'jointCustomers',
+            'primaryCustomerId',
+            'jointAccountHolders'
+        ]);
 
         // Set current step to 2
         $this->currentStep = 2;
@@ -156,8 +177,8 @@ class AccountCreate extends Component
 
             // Set overdraft limit only for current accounts
             if ($this->isCurrentAccount) {
-                $this->overdraft_limit = $this->customer_type === 'organization'
-                    ? $this->selectedAccountType['min_balance'] * 2 // Higher limit for organizations
+                $this->overdraft_limit = $this->customer_type === 'organization' || $this->customer_type === 'joint'
+                    ? $this->selectedAccountType['min_balance'] * 2 // Higher limit for organizations and joint accounts
                     : $this->selectedAccountType['min_balance'] * 0.5; // Lower limit for individuals
             } else {
                 // For non-current accounts, set overdraft to 0
@@ -232,6 +253,224 @@ class AccountCreate extends Component
         }
     }
 
+    public function setPrimaryCustomer($customerId)
+    {
+        try {
+            $customer = Customer::with(['branch', 'accounts.accountType'])->findOrFail($customerId);
+
+            if (!$this->isCustomerEligibleForJoint($customer)) {
+                $this->addError('primaryCustomerId', 'Selected customer is not eligible for joint account.');
+                return;
+            }
+
+            $this->primaryCustomerId = $customerId;
+            $this->jointAccountHolders = [$this->formatJointCustomerData($customer)];
+
+            // Clear the joint customer search
+            $this->jointCustomerSearch = '';
+
+            // Update URL with primary customer ID
+            $this->dispatch(
+                'update-url',
+                customer_type: $this->customer_type,
+                customer_id: $customerId
+            );
+        } catch (\Exception $e) {
+            Log::error('Error setting primary customer: ' . $e->getMessage());
+            $this->addError('primaryCustomerId', 'Error selecting primary customer.');
+        }
+    }
+
+    public function addJointAccountHolder($customerId)
+    {
+        try {
+            // Check if we already have 5 joint holders (reasonable limit)
+            if (count($this->jointAccountHolders) >= 5) {
+                $this->addError('jointAccountHolders', 'Maximum 5 account holders allowed for joint accounts.');
+                return;
+            }
+
+            // Check if customer is already added
+            if (collect($this->jointAccountHolders)->contains('id', $customerId)) {
+                $this->addError('jointAccountHolders', 'Customer already added as account holder.');
+                return;
+            }
+
+            $customer = Customer::with(['branch', 'accounts.accountType'])->findOrFail($customerId);
+
+            if (!$this->isCustomerEligibleForJoint($customer)) {
+                $this->addError('jointAccountHolders', 'Selected customer is not eligible for joint account.');
+                return;
+            }
+
+            $this->jointAccountHolders[] = $this->formatJointCustomerData($customer);
+
+            // Clear the joint customer search
+            $this->jointCustomerSearch = '';
+        } catch (\Exception $e) {
+            Log::error('Error adding joint account holder: ' . $e->getMessage());
+            $this->addError('jointAccountHolders', 'Error adding joint account holder.');
+        }
+    }
+
+    protected function formatJointCustomerData(Customer $customer): array
+    {
+        $accounts = $customer->accounts ?? collect();
+
+        return [
+            'id' => $customer->id,
+            'full_name' => $customer->full_name ?? 'Unknown Customer',
+            'name' => $customer->full_name ?? 'Unknown',
+            'email' => $customer->email ?? 'N/A',
+            'phone' => $customer->phone ?? 'N/A',
+            'customer_number' => $customer->customer_number ?? 'N/A',
+            'profile_photo_url' => $customer->profile_photo_url ?? $this->getDefaultProfilePhoto($customer->full_name ?? 'Customer'),
+            'kyc_status' => $customer->kyc_status ?? 'pending',
+            'age' => $customer->date_of_birth ? $customer->date_of_birth->age : null,
+            'existing_accounts' => $accounts->count(),
+            'total_balance' => $accounts->sum('current_balance'),
+            'branch_name' => $customer->branch->name ?? 'N/A',
+            'is_primary' => $customer->id === $this->primaryCustomerId,
+        ];
+    }
+
+    public function removeJointAccountHolder($index)
+    {
+        // Prevent removing the primary customer
+        if ($index === 0) {
+            $this->addError('jointAccountHolders', 'Cannot remove the primary account holder.');
+            return;
+        }
+
+        unset($this->jointAccountHolders[$index]);
+        $this->jointAccountHolders = array_values($this->jointAccountHolders);
+    }
+
+    public function clearJointSelection()
+    {
+        $this->jointAccountHolders = [];
+        $this->primaryCustomerId = null;
+        $this->customer_id = null;
+        $this->account_type_id = '';
+        $this->selectedAccountType = null;
+        $this->isCurrentAccount = false;
+        $this->currentStep = 2;
+
+        $this->dispatch(
+            'update-url',
+            customer_type: $this->customer_type,
+            customer_id: null
+        );
+    }
+
+    protected function isCustomerEligibleForJoint(Customer $customer): bool
+    {
+        // For debugging, let's temporarily make this more permissive
+        // You can restore the strict checks later
+
+        // Must be individual customer
+        if ($customer->customer_type !== 'individual') {
+            Log::info('Customer not eligible: not individual', ['customer_id' => $customer->id]);
+            return false;
+        }
+
+        // Customer must be active
+        if ($customer->status !== 'active') {
+            return false;
+        }
+
+        // Customer must have verified KYC
+        if ($customer->kyc_status !== 'verified') {
+            return false;
+        }
+
+        return true;
+    }
+
+    public function performJointSearch()
+    {
+        $this->isSearching = true;
+
+        $user = Auth::user();
+
+        try {
+            // Direct query using raw SQL to ensure it works
+            $sql = "
+            SELECT id, first_name, last_name, email, phone, customer_number, 
+                   status, kyc_status, branch_id
+            FROM customers 
+            WHERE customer_type = 'individual' 
+            AND status = 'active' 
+            AND kyc_status = 'verified'
+        ";
+
+            $bindings = [];
+
+            // Add branch filter
+            if (!Gate::allows('view all branches') && $user->branch_id) {
+                $sql .= " AND branch_id = ?";
+                $bindings[] = $user->branch_id;
+            }
+
+            // Add search filter
+            if ($this->jointCustomerSearch && strlen($this->jointCustomerSearch) >= 2) {
+                $searchTerm = '%' . $this->jointCustomerSearch . '%';
+                $sql .= " AND (
+                LOWER(first_name) LIKE LOWER(?) 
+                OR LOWER(last_name) LIKE LOWER(?) 
+                OR LOWER(CONCAT(first_name, ' ', last_name)) LIKE LOWER(?)
+                OR LOWER(email) LIKE LOWER(?)
+                OR LOWER(customer_number) LIKE LOWER(?)
+            )";
+
+                // Add the search term 5 times for each condition
+                for ($i = 0; $i < 5; $i++) {
+                    $bindings[] = $searchTerm;
+                }
+            }
+
+            // Add order by
+            $sql .= " ORDER BY first_name, last_name LIMIT 50";
+
+            // Execute the query
+            $results = DB::select($sql, $bindings);
+
+            // Transform results
+            $this->jointSearchResults = collect($results)->map(function ($customer) {
+                $customerModel = Customer::find($customer->id);
+
+                return [
+                    'id' => $customer->id,
+                    'full_name' => trim($customer->first_name . ' ' . ($customer->last_name ?? '')),
+                    'first_name' => $customer->first_name,
+                    'last_name' => $customer->last_name,
+                    'email' => $customer->email ?? 'N/A',
+                    'phone' => $customer->phone ?? 'N/A',
+                    'customer_number' => $customer->customer_number ?? 'N/A',
+                    'profile_photo_url' => $customerModel ?
+                        ($customerModel->profile_photo_url ?? $this->getDefaultProfilePhoto($customer->first_name)) :
+                        $this->getDefaultProfilePhoto($customer->first_name),
+                    'branch_name' => $customerModel && $customerModel->branch ?
+                        $customerModel->branch->name : ('Branch ' . ($customer->branch_id ?? 'N/A')),
+                    'existing_accounts' => $customerModel ? $customerModel->accounts->count() : 0,
+                    'kyc_status' => $customer->kyc_status ?? 'pending',
+                    'status' => $customer->status ?? 'unknown',
+                ];
+            })->toArray();
+        } catch (\Exception $e) {
+            Log::error('Search error: ' . $e->getMessage());
+            $this->jointSearchResults = [];
+        }
+
+        $this->isSearching = false;
+    }
+
+    // Add listener for search input
+    public function updatedJointCustomerSearch()
+    {
+        $this->performJointSearch();
+    }
+
     public function previousStep()
     {
         if ($this->currentStep > 1) {
@@ -245,6 +484,11 @@ class AccountCreate extends Component
                 $this->customer_id = null;
                 $this->selectedCustomer = null;
                 $this->customer_type = null;
+                $this->jointAccountHolders = [];
+                $this->primaryCustomerId = null;
+                $this->jointAccountRelationship = '';
+                $this->jointCustomerSearch = '';
+                $this->jointSearchResults = [];
                 $this->dispatch(
                     'update-url',
                     customer_type: null,
@@ -377,6 +621,7 @@ class AccountCreate extends Component
                 'max_balance' => $type->max_balance,
                 'status' => $type->status,
                 'is_for_organizations' => $type->is_for_organizations ?? false,
+                'is_for_joint' => $type->is_for_joint ?? true, // Assume all accounts can be joint unless specified
                 'icon' => $type->icon ?? 'fa-wallet',
             ];
         })->toArray();
@@ -385,7 +630,7 @@ class AccountCreate extends Component
     public function updatedCustomerId($value)
     {
         // This method will be called when customer_id changes via URL parameter
-        if ($value && !$this->selectedCustomer) {
+        if ($value && !$this->selectedCustomer && $this->customer_type !== 'joint') {
             $this->selectCustomerFromUrl($value);
         }
     }
@@ -409,6 +654,11 @@ class AccountCreate extends Component
     {
         $user = Auth::user();
         if (!$user instanceof User || !$this->customer_type) {
+            return [];
+        }
+
+        // For joint accounts, we don't use this property
+        if ($this->customer_type === 'joint') {
             return [];
         }
 
@@ -558,6 +808,10 @@ class AccountCreate extends Component
     // Add this method to handle step changes
     public function changeStep($step)
     {
+        // Clear previous errors
+        $this->resetErrorBag();
+        session()->forget('error');
+
         // Validate step transition
         if ($step < 1 || $step > 4) {
             return;
@@ -566,6 +820,8 @@ class AccountCreate extends Component
         // Validate backward navigation
         if ($step < $this->currentStep) {
             $this->currentStep = $step;
+            $this->dispatch('step-changed', step: $step);
+            $this->dispatch('scroll-to-top');
             return;
         }
 
@@ -574,13 +830,62 @@ class AccountCreate extends Component
             case 2:
                 if (!$this->customer_type) {
                     $this->addError('customer_type', 'Please select a customer type first.');
+                    session()->flash('error', 'Please select a customer type first.');
+                    $this->dispatch('scroll-to-top');
                     return;
                 }
                 break;
 
             case 3:
-                if (!$this->customer_id) {
-                    $this->addError('general', 'Please select a customer first.');
+                if ($this->customer_type === 'joint') {
+                    // Log the current state for debugging
+                    Log::info('Joint account validation:', [
+                        'holders_count' => is_array($this->jointAccountHolders) ? count($this->jointAccountHolders) : 0,
+                        'relationship' => $this->jointAccountRelationship,
+                        'holders' => $this->jointAccountHolders
+                    ]);
+
+                    // Check if we have at least 2 holders
+                    $holdersCount = is_array($this->jointAccountHolders) ? count($this->jointAccountHolders) : 0;
+
+                    if ($holdersCount < 2) {
+                        $this->addError('jointAccountHolders', 'Please select at least 2 account holders for joint account.');
+                        session()->flash('error', 'Please select at least 2 account holders for joint account.');
+                        $this->dispatch('scroll-to-top');
+                        return;
+                    }
+
+                    // Check if relationship type is selected
+                    if (empty($this->jointAccountRelationship)) {
+                        $this->addError('jointAccountRelationship', 'Please select account operating instructions.');
+                        session()->flash('error', 'Please select account operating instructions.');
+                        $this->dispatch('scroll-to-top');
+                        return;
+                    }
+
+                    // Set primary customer ID from first holder if not set
+                    if (empty($this->primaryCustomerId) && $holdersCount > 0) {
+                        $this->primaryCustomerId = $this->jointAccountHolders[0]['id'];
+                        Log::info('Set primary customer to: ' . $this->primaryCustomerId);
+                    }
+
+                    // If we get here, validation passed - proceed to step 3
+                    $this->currentStep = 3;
+                    $this->dispatch('step-changed', step: 3);
+                    $this->dispatch('scroll-to-top');
+                    return; // Important: return after setting step
+
+                } else {
+                    if (!$this->customer_id) {
+                        $this->addError('general', 'Please select a customer first.');
+                        session()->flash('error', 'Please select a customer first.');
+                        $this->dispatch('scroll-to-top');
+                        return;
+                    }
+                    // For non-joint accounts, proceed to step 3
+                    $this->currentStep = 3;
+                    $this->dispatch('step-changed', step: 3);
+                    $this->dispatch('scroll-to-top');
                     return;
                 }
                 break;
@@ -588,15 +893,74 @@ class AccountCreate extends Component
             case 4:
                 if (!$this->account_type_id) {
                     $this->addError('account_type_id', 'Please select an account type first.');
+                    session()->flash('error', 'Please select an account type first.');
+                    $this->dispatch('scroll-to-top');
                     return;
                 }
-                break;
+                // Proceed to step 4
+                $this->currentStep = 4;
+                $this->dispatch('step-changed', step: 4);
+                $this->dispatch('scroll-to-top');
+                return;
         }
 
-        $this->currentStep = $step;
+        // If we get here for other cases, set the step
+        if ($step > $this->currentStep) {
+            $this->currentStep = $step;
+            $this->dispatch('step-changed', step: $step);
+            $this->dispatch('scroll-to-top');
+        }
+    }
 
-        // Dispatch event to update progress indicators
-        $this->dispatch('step-changed', step: $step);
+    public function ensurePrimaryCustomer()
+    {
+        if (empty($this->primaryCustomerId) && !empty($this->jointAccountHolders)) {
+            $this->primaryCustomerId = $this->jointAccountHolders[0]['id'];
+            Log::info('Set primary customer to: ' . $this->primaryCustomerId);
+        }
+    }
+
+    public function proceedToAccountDetails()
+    {
+        Log::info('========== PROCEED TO ACCOUNT DETAILS CALLED ==========');
+
+        // Force set the step to 3
+        $this->currentStep = 3;
+
+        // Ensure primary customer is set
+        if (empty($this->primaryCustomerId) && !empty($this->jointAccountHolders)) {
+            $this->primaryCustomerId = $this->jointAccountHolders[0]['id'];
+        }
+
+        Log::info('Step set to: ' . $this->currentStep);
+        Log::info('Primary customer: ' . $this->primaryCustomerId);
+
+        // Dispatch events
+        $this->dispatch('step-changed', step: 3);
+        $this->dispatch('scroll-to-top');
+        $this->dispatch('force-step-update', step: 3);
+
+        // Force a re-render
+        $this->render();
+    }
+
+    public function updatedJointAccountHolders()
+    {
+        $this->ensurePrimaryCustomer();
+    }
+
+    public function checkJointAccountState()
+    {
+        $state = [
+            'jointAccountHolders' => $this->jointAccountHolders,
+            'holders_count' => count($this->jointAccountHolders),
+            'jointAccountRelationship' => $this->jointAccountRelationship,
+            'primaryCustomerId' => $this->primaryCustomerId,
+        ];
+
+        Log::info('Joint Account State:', $state);
+
+        $this->dispatch('show-state', state: json_encode($state));
     }
 
     public function clearCustomerSelection()
@@ -617,23 +981,6 @@ class AccountCreate extends Component
             customer_id: null
         );
     }
-
-    // public function generateAccountNumber()
-    // {
-    //     // Generate account number based on customer type
-    //     $prefix = $this->customer_type === 'organization' ? 'ORG' : 'IND';
-    //     $branchCode = str_pad($this->branch_id ?: '001', 3, '0', STR_PAD_LEFT);
-    //     $timestamp = now()->format('ymdHis');
-    //     $random = str_pad(rand(0, 999), 3, '0', STR_PAD_LEFT);
-
-    //     $this->generatedAccountNumber = $prefix . $branchCode . $timestamp . $random;
-
-    //     // Ensure uniqueness
-    //     while (Account::where('account_number', $this->generatedAccountNumber)->exists()) {
-    //         $random = str_pad(rand(0, 999), 3, '0', STR_PAD_LEFT);
-    //         $this->generatedAccountNumber = $prefix . $branchCode . $timestamp . $random;
-    //     }
-    // }
 
     public function generateAccountNumber()
     {
@@ -660,13 +1007,210 @@ class AccountCreate extends Component
         $this->generatedAccountNumber = $branchCode . $sequence;
     }
 
+    public function testClick()
+{
+    Log::info('Test click method called');
+    session()->flash('debug', 'Test button clicked!');
+}
+
+    // public function save()
+    // {
+    //     dd($this->all());
+    //     try{
+    //          Log::info('Save method called', [
+    //         'customer_type' => $this->customer_type,
+    //         'account_type_id' => $this->account_type_id,
+    //         'customer_id' => $this->customer_id,
+    //         'joint_holders' => count($this->jointAccountHolders),
+    //         'termsAccepted' => $this->termsAccepted,
+    //     ]);
+
+    //     session()->flash('debug', 'Save method was called! Check logs.');
+
+    //     // Validate based on customer type
+    //     $validationRules = [
+    //         'customer_type' => 'required|in:individual,organization,joint',
+    //         'currency' => 'required|string|max:3',
+    //         'minimum_balance' => 'required|numeric|min:0',
+    //         'overdraft_limit' => 'required|numeric|min:0',
+    //         'status' => 'required|in:active,dormant,restricted,closed',
+    //         'notes' => 'nullable|string|max:1000',
+    //         'generatedAccountNumber' => 'required|string|unique:accounts,account_number',
+    //         'termsAccepted' => 'required|accepted',
+    //     ];
+
+    //     if ($this->customer_type === 'joint') {
+    //         $validationRules['jointAccountHolders'] = 'required|array|min:2|max:5';
+    //         $validationRules['primaryCustomerId'] = 'required|exists:customers,id';
+    //         $validationRules['jointAccountRelationship'] = 'required|string|min:3';
+    //         $validationRules['account_type_id'] = 'required|exists:account_types,id';
+
+    //         // Ensure all joint holders are valid customers
+    //         foreach ($this->jointAccountHolders as $index => $holder) {
+    //             $validationRules["jointAccountHolders.{$index}.id"] = 'required|exists:customers,id';
+    //         }
+    //     } elseif ($this->customer_type === 'organization') {
+    //         $validationRules['customer_id'] = 'required|exists:customers,id';
+    //         $validationRules['account_type_id'] = 'required|exists:account_types,id';
+    //         $validationRules['signatoriesVerified'] = 'required|accepted';
+
+    //         // Validate signatories
+    //         foreach ($this->signatories as $index => $signatory) {
+    //             $validationRules["signatories.{$index}.name"] = 'required|string|min:3';
+    //             $validationRules["signatories.{$index}.email"] = 'required|email';
+    //             $validationRules["signatories.{$index}.phone"] = 'required|string|min:10';
+    //         }
+    //     } else {
+    //         // Individual account
+    //         $validationRules['customer_id'] = 'required|exists:customers,id';
+    //         $validationRules['account_type_id'] = 'required|exists:account_types,id';
+    //     }
+    //     } catch (\Exception $e) {
+    //     Log::error('Save method exception: ' . $e->getMessage());
+    //     throw $e;
+    // }
+
+
+    //     $this->validate($validationRules);
+
+    //     try {
+    //         DB::beginTransaction();
+
+    //         // Determine branch_id
+    //         if ($this->customer_type === 'joint') {
+    //             // For joint accounts, use the primary customer's branch
+    //             $primaryCustomer = Customer::find($this->primaryCustomerId);
+    //             $this->branch_id = $primaryCustomer->branch_id;
+    //         } else {
+    //             $customer = Customer::find($this->customer_id);
+    //             $this->branch_id = $customer->branch_id;
+    //         }
+
+    //         // Prepare metadata
+    //         $metadata = [
+    //             'created_by' => Auth::user()->id,
+    //             'opened_at' => now()->toISOString(),
+    //             'customer_type' => $this->customer_type,
+    //             'is_current_account' => $this->isCurrentAccount,
+    //         ];
+
+    //         if ($this->customer_type === 'joint') {
+    //             $metadata['joint_account_holders'] = collect($this->jointAccountHolders)->map(function ($holder) {
+    //                 return [
+    //                     'customer_id' => $holder['id'],
+    //                     'name' => $holder['full_name'],
+    //                     'is_primary' => $holder['id'] == $this->primaryCustomerId,
+    //                 ];
+    //             })->toArray();
+    //             $metadata['relationship_type'] = $this->jointAccountRelationship;
+    //         } elseif ($this->customer_type === 'organization') {
+    //             $metadata['signatories'] = $this->signatories;
+    //             $metadata['organization_type'] = $customer->organization_type ?? null;
+    //             $metadata['registration_number'] = $customer->registration_number ?? null;
+    //             $metadata['tax_identification_number'] = $customer->tax_identification_number ?? null;
+    //         }
+
+    //         // Create the account with 0 initial balance
+    //         $accountData = [
+    //             'customer_id' => $this->customer_type === 'joint' ? $this->primaryCustomerId : $this->customer_id,
+    //             'account_type_id' => $this->account_type_id,
+    //             'branch_id' => $this->branch_id,
+    //             'account_number' => $this->generatedAccountNumber,
+    //             'currency' => $this->currency,
+    //             'current_balance' => 0,
+    //             'available_balance' => 0,
+    //             'ledger_balance' => 0,
+    //             'minimum_balance' => $this->minimum_balance,
+    //             'overdraft_limit' => $this->overdraft_limit,
+    //             'status' => $this->status,
+    //             'opened_at' => now(),
+    //             'notes' => $this->notes,
+    //             'metadata' => $metadata,
+    //         ];
+
+    //         $account = Account::create($accountData);
+
+    //         // For joint accounts, create account holder relationships
+    //         if ($this->customer_type === 'joint' && method_exists($account, 'jointHolders')) {
+    //             foreach ($this->jointAccountHolders as $holder) {
+    //                 $account->jointHolders()->create([
+    //                     'customer_id' => $holder['id'],
+    //                     'is_primary' => $holder['id'] == $this->primaryCustomerId,
+    //                     'relationship_type' => $this->jointAccountRelationship,
+    //                     'status' => 'active',
+    //                     'added_at' => now(),
+    //                 ]);
+    //             }
+    //         }
+
+    //         // Log activity
+    //         $logMessage = match ($this->customer_type) {
+    //             'individual' => 'Individual account created',
+    //             'organization' => 'Organizational account created',
+    //             'joint' => 'Joint account created with ' . count($this->jointAccountHolders) . ' holders',
+    //             default => 'Account created'
+    //         };
+
+    //         activity()
+    //             ->causedBy(Auth::user())
+    //             ->performedOn($account)
+    //             ->withProperties([
+    //                 'account_number' => $account->account_number,
+    //                 'customer_type' => $this->customer_type,
+    //                 'is_current_account' => $this->isCurrentAccount,
+    //             ])
+    //             ->log($logMessage);
+
+    //         // Log audit
+    //         AuditLogService::log('account_created', $account, null, [
+    //             'account_number' => $account->account_number,
+    //             'customer_type' => $this->customer_type,
+    //             'account_type_id' => $account->account_type_id,
+    //             'is_current_account' => $this->isCurrentAccount,
+    //             'currency' => $this->currency,
+    //         ], [
+    //             'branch_id' => $this->branch_id,
+    //             'created_by' => Auth::user()->id,
+    //             'ip_address' => request()->ip(),
+    //             'user_agent' => request()->userAgent(),
+    //         ]);
+
+    //         DB::commit();
+
+    //         $typeMessage = match ($this->customer_type) {
+    //             'individual' => 'Individual',
+    //             'organization' => 'Organizational',
+    //             'joint' => 'Joint',
+    //             default => 'Account'
+    //         };
+
+    //         session()->flash('success', $typeMessage . ' account created successfully. ' .
+    //             'You can now make a deposit to activate the account.');
+
+    //         // Redirect to account details page with option to make deposit
+    //         return redirect()->route('accounts.show', $account->id)->with('show_deposit_modal', true);
+    //     } catch (\Exception $e) {
+    //         DB::rollBack();
+
+    //         Log::error('Account creation failed: ' . $e->getMessage(), [
+    //             'exception' => $e,
+    //             'data' => [
+    //                 'customer_type' => $this->customer_type,
+    //                 'account_type_id' => $this->account_type_id,
+    //             ]
+    //         ]);
+
+    //         session()->flash('error', 'Failed to create account: ' . $e->getMessage());
+    //         $this->addError('general', 'Failed to create account: ' . $e->getMessage());
+    //     }
+    // }
+
     public function save()
-    {
+{
+    try {
         // Validate based on customer type
         $validationRules = [
-            'customer_type' => 'required|in:individual,organization',
-            'customer_id' => 'required|exists:customers,id',
-            'account_type_id' => 'required|exists:account_types,id',
+            'customer_type' => 'required|in:individual,organization,joint',
             'currency' => 'required|string|max:3',
             'minimum_balance' => 'required|numeric|min:0',
             'overdraft_limit' => 'required|numeric|min:0',
@@ -676,8 +1220,19 @@ class AccountCreate extends Component
             'termsAccepted' => 'required|accepted',
         ];
 
-        // Additional validation for organizations
-        if ($this->customer_type === 'organization') {
+        if ($this->customer_type === 'joint') {
+            $validationRules['jointAccountHolders'] = 'required|array|min:2|max:5';
+            $validationRules['primaryCustomerId'] = 'required|exists:customers,id';
+            $validationRules['jointAccountRelationship'] = 'required|string|min:3';
+            $validationRules['account_type_id'] = 'required|exists:account_types,id';
+
+            // Ensure all joint holders are valid customers
+            foreach ($this->jointAccountHolders as $index => $holder) {
+                $validationRules["jointAccountHolders.{$index}.id"] = 'required|exists:customers,id';
+            }
+        } elseif ($this->customer_type === 'organization') {
+            $validationRules['customer_id'] = 'required|exists:customers,id';
+            $validationRules['account_type_id'] = 'required|exists:account_types,id';
             $validationRules['signatoriesVerified'] = 'required|accepted';
 
             // Validate signatories
@@ -686,115 +1241,113 @@ class AccountCreate extends Component
                 $validationRules["signatories.{$index}.email"] = 'required|email';
                 $validationRules["signatories.{$index}.phone"] = 'required|string|min:10';
             }
+        } else {
+            // Individual account
+            $validationRules['customer_id'] = 'required|exists:customers,id';
+            $validationRules['account_type_id'] = 'required|exists:account_types,id';
         }
 
-        $this->validate($validationRules);
+        $validatedData = $this->validate($validationRules);
 
-        // Check if customer is eligible
-        $customer = Customer::find($this->customer_id);
-        if (!$this->isCustomerEligible($customer)) {
-            $this->addError('general', 'Customer is not eligible for account creation.');
-            return;
+        DB::beginTransaction();
+
+        // Determine branch_id
+        if ($this->customer_type === 'joint') {
+            // For joint accounts, use the primary customer's branch
+            $primaryCustomer = Customer::find($this->primaryCustomerId);
+            $this->branch_id = $primaryCustomer->branch_id;
+        } else {
+            $customer = Customer::find($this->customer_id);
+            $this->branch_id = $customer->branch_id;
         }
 
-        // Verify customer type matches
-        if ($customer->customer_type !== $this->customer_type) {
-            $this->addError('general', 'Customer type mismatch.');
-            return;
+        // Prepare metadata
+        $metadata = [
+            'created_by' => Auth::user()->id,
+            'opened_at' => now()->toISOString(),
+            'customer_type' => $this->customer_type,
+            'is_current_account' => $this->isCurrentAccount,
+        ];
+
+        if ($this->customer_type === 'joint') {
+            $metadata['joint_account_holders'] = collect($this->jointAccountHolders)->map(function ($holder) {
+                return [
+                    'customer_id' => $holder['id'],
+                    'name' => $holder['full_name'],
+                    'is_primary' => $holder['id'] == $this->primaryCustomerId,
+                ];
+            })->toArray();
+            $metadata['relationship_type'] = $this->jointAccountRelationship;
+        } elseif ($this->customer_type === 'organization') {
+            $metadata['signatories'] = $this->signatories;
+            $metadata['organization_type'] = $customer->organization_type ?? null;
+            $metadata['registration_number'] = $customer->registration_number ?? null;
+            $metadata['tax_identification_number'] = $customer->tax_identification_number ?? null;
         }
 
-        try {
-            DB::beginTransaction();
+        // Create the account with 0 initial balance
+        $accountData = [
+            'customer_id' => $this->customer_type === 'joint' ? $this->primaryCustomerId : $this->customer_id,
+            'account_type_id' => $this->account_type_id,
+            'branch_id' => $this->branch_id,
+            'account_number' => $this->generatedAccountNumber,
+            'currency' => $this->currency,
+            'current_balance' => 0,
+            'available_balance' => 0,
+            'ledger_balance' => 0,
+            'minimum_balance' => $this->minimum_balance,
+            'overdraft_limit' => $this->overdraft_limit,
+            'status' => $this->status,
+            'opened_at' => now(),
+            'notes' => $this->notes,
+            'metadata' => $metadata,
+        ];
 
-            // Set branch_id from customer if not specified
-            if (!$this->branch_id && $customer->branch_id) {
-                $this->branch_id = $customer->branch_id;
+        $account = Account::create($accountData);
+
+        // For joint accounts, create account holder relationships
+        if ($this->customer_type === 'joint' && method_exists($account, 'jointHolders')) {
+            foreach ($this->jointAccountHolders as $holder) {
+                $account->jointHolders()->create([
+                    'customer_id' => $holder['id'],
+                    'is_primary' => $holder['id'] == $this->primaryCustomerId,
+                    'relationship_type' => $this->jointAccountRelationship,
+                    'status' => 'active',
+                    'added_at' => now(),
+                ]);
             }
+        }
 
-            // Prepare metadata
-            $metadata = [
-                'created_by' => Auth::user()->id,
-                'opened_at' => now()->toISOString(),
-                'customer_type' => $this->customer_type,
-                'is_current_account' => $this->isCurrentAccount,
-            ];
-
-            // Add organization-specific metadata
-            if ($this->customer_type === 'organization') {
-                $metadata['signatories'] = $this->signatories;
-                $metadata['organization_type'] = $customer->organization_type;
-                $metadata['registration_number'] = $customer->registration_number;
-                $metadata['tax_identification_number'] = $customer->tax_identification_number;
-            }
-
-            // Create the account with 0 initial balance
-            $account = Account::create([
-                'customer_id' => $this->customer_id,
-                'account_type_id' => $this->account_type_id,
-                'branch_id' => Auth::user()->branch->id,
-                'account_number' => $this->generatedAccountNumber,
-                'currency' => $this->currency,
-                'current_balance' => 0,
-                'available_balance' => 0,
-                'ledger_balance' => 0,
-                'minimum_balance' => $this->minimum_balance,
-                'overdraft_limit' => $this->overdraft_limit,
-                'status' => $this->status,
-                'opened_at' => now(),
-                'notes' => $this->notes,
-                'metadata' => $metadata,
-            ]);
-
-            // Log activity
-            activity()
-                ->causedBy(Auth::user())
-                ->performedOn($account)
-                ->withProperties([
-                    'account_number' => $account->account_number,
-                    'customer_id' => $account->customer_id,
-                    'customer_type' => $this->customer_type,
-                    'is_current_account' => $this->isCurrentAccount,
-                ])
-                ->log(($this->customer_type === 'individual' ? 'Individual' : 'Organizational') . ' account created');
-
-            // Log audit
-            AuditLogService::log('account_created', $account, null, [
+        // Log activity
+        activity()
+            ->causedBy(Auth::user())
+            ->performedOn($account)
+            ->withProperties([
                 'account_number' => $account->account_number,
-                'customer_id' => $account->customer_id,
                 'customer_type' => $this->customer_type,
-                'account_type_id' => $account->account_type_id,
                 'is_current_account' => $this->isCurrentAccount,
-                'currency' => $this->currency,
-            ], [
-                'branch_id' => $this->branch_id,
-                'created_by' => Auth::user()->id,
-                'ip_address' => request()->ip(),
-                'user_agent' => request()->userAgent(),
-            ]);
+            ])
+            ->log($logMessage ?? 'Account created');
 
-            DB::commit();
+        DB::commit();
 
-            session()->flash('success', ($this->customer_type === 'individual' ? 'Individual' : 'Organizational') . ' account created successfully. ' .
-                'You can now make a deposit to activate the account.');
+        session()->flash('success', 'Account created successfully. You can now make a deposit to activate the account.');
+        return redirect()->route('accounts.show', $account->id)->with('show_deposit_modal', true);
 
-            // Redirect to account details page with option to make deposit
-            return redirect()->route('accounts.show', $account->id)->with('show_deposit_modal', true);
-        } catch (\Exception $e) {
-            DB::rollBack();
-
-            Log::error('Account creation failed: ' . $e->getMessage(), [
-                'exception' => $e,
-                'data' => [
-                    'customer_id' => $this->customer_id,
-                    'customer_type' => $this->customer_type,
-                    'account_type_id' => $this->account_type_id,
-                ]
-            ]);
-
-            session()->flash('error', 'Failed to create account: ' . $e->getMessage());
-            $this->addError('general', 'Failed to create account: ' . $e->getMessage());
-        }
+    } catch (\Illuminate\Validation\ValidationException $e) {
+        DB::rollBack();
+        Log::error('Validation failed:', ['errors' => $e->errors()]);
+        throw $e;
+    } catch (\Exception $e) {
+        DB::rollBack();
+        Log::error('Account creation failed: ' . $e->getMessage(), [
+            'exception' => $e,
+            'trace' => $e->getTraceAsString()
+        ]);
+        session()->flash('error', 'Failed to create account: ' . $e->getMessage());
+        $this->addError('general', 'Failed to create account: ' . $e->getMessage());
     }
+}
 
     /**
      * Get currency symbol
@@ -846,6 +1399,6 @@ class AccountCreate extends Component
         // Update currency symbol
         $this->currencySymbol = $this->getCurrencySymbol($this->currency);
 
-        return view('livewire.accounts.account-create'); 
+        return view('livewire.accounts.account-create');
     }
 }
