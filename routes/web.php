@@ -6,18 +6,14 @@ use App\Livewire\Accounts\AccountIndex;
 use App\Livewire\Accounts\AccountShow;
 use App\Livewire\Accounts\AccountStatement;
 use App\Livewire\Accounts\AccountTransaction;
+use App\Livewire\Accounts\AccountTypeManager;
+use App\Livewire\Accounts\MonthlyProcessingControl;
 use App\Livewire\Auth\Login;
 use App\Livewire\Customers\CustomerCreate;
 use App\Livewire\Customers\CustomerEdit;
 use App\Livewire\Customers\CustomerIndex;
 use App\Livewire\Customers\CustomerShow;
 use App\Livewire\Dashboard;
-use App\Livewire\Fee\Configuration\FeeConfigurationCreate;
-use App\Livewire\Fee\Configuration\FeeConfigurationIndex;
-use App\Livewire\Fee\Processing\FeeProcessingIndex;
-use App\Livewire\Interest\Configuration\InterestConfigurationCreate;
-use App\Livewire\Interest\Configuration\InterestConfigurationIndex;
-use App\Livewire\Interest\Processing\InterestProcessingIndex;
 use App\Livewire\Loans\LoanApplication;
 use App\Livewire\Loans\LoanIndex;
 use App\Livewire\Loans\LoanReview;
@@ -72,6 +68,9 @@ Route::middleware('auth')->group(function () {
     //Accounts routes
     Route::prefix('accounts')->name('accounts.')->group(function () {
         Route::get('/', AccountIndex::class)->name('index');
+        // Account Type Management
+        Route::get('/account-types', AccountTypeManager::class)->name('account-types');
+        Route::get('/monthly-processing', MonthlyProcessingControl::class)->name('monthly-processing');
         Route::get('/create', AccountCreate::class)->name('create');
         Route::get('/{account}', AccountShow::class)->name('show');
         Route::get('/{account}/edit', AccountEdit::class)->name('edit');
@@ -110,20 +109,6 @@ Route::middleware('auth')->group(function () {
     //Tellers routes
     Route::prefix('tellers')->name('tellers.')->group(function () {
         Route::get('/', TellerIndex::class)->name('index');
-    });
-
-    // Fee Management Routes
-    Route::prefix('fee')->name('fee.')->group(function () {
-        Route::get('/configurations', FeeConfigurationIndex::class)->name('configurations');
-        Route::get('/configurations/create', FeeConfigurationCreate::class)->name('configurations.create');
-        Route::get('/processing', FeeProcessingIndex::class)->name('processing');
-    });
-
-    // Interest Management Routes
-    Route::prefix('interest')->name('interest.')->group(function () {
-        Route::get('/configurations', InterestConfigurationIndex::class)->name('configurations');
-        Route::get('/configurations/create', InterestConfigurationCreate::class)->name('configurations.create');
-        Route::get('/processing', InterestProcessingIndex::class)->name('processing');
     });
 });
 

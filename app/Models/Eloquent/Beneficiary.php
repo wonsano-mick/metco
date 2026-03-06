@@ -7,7 +7,6 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\SoftDeletes;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
-use Ramsey\Uuid\Uuid;
 
 class Beneficiary extends Model
 {
@@ -142,7 +141,7 @@ class Beneficiary extends Model
 
     public function verificationLogs(): HasMany
     {
-        return $this->hasMany(BeneficiaryVerificationLog::class);
+        // return $this->hasMany(BeneficiaryVerificationLog::class);
     }
 
     public function transactions(): HasMany
@@ -152,7 +151,7 @@ class Beneficiary extends Model
 
     public function beneficiaryTransactions(): HasMany
     {
-        return $this->hasMany(BeneficiaryTransaction::class);
+        // return $this->hasMany(BeneficiaryTransaction::class);
     }
 
     // Scopes

@@ -787,18 +787,37 @@
                                                     <div class="ml-3 flex-1">
                                                         <h4 class="font-semibold text-gray-900">{{ $type['name'] }}
                                                         </h4>
-                                                        <p class="text-sm text-gray-500 mt-2">
+                                                        <p class="text-sm text-gray-500 mt-2 line-clamp-2">
                                                             {{ $type['description'] }}</p>
-                                                        <div class="mt-4 flex items-center justify-between text-sm">
+                                                        <div class="mt-4 grid grid-cols-2 gap-2 text-sm">
                                                             <span class="text-{{ $typeColor }}-600 font-medium">
                                                                 <i class="fas fa-percentage mr-1"></i>
-                                                                {{ number_format($type['interest_rate'], 2) }}%
+                                                                {{ number_format($type['interest_rate'], 2) }}% p.a.
                                                             </span>
-                                                            <span class="text-gray-600">
+                                                            <span class="text-{{ $typeColor }}-600 font-medium">
+                                                                <i class="fas fa-coins mr-1"></i>
+                                                                Fee: {{ number_format($type['monthly_fee'], 2) }}/mo
+                                                            </span>
+                                                            <span class="text-gray-600 col-span-2">
                                                                 <i class="fas fa-balance-scale mr-1"></i>
                                                                 Min: {{ number_format($type['min_balance'], 2) }}
                                                             </span>
                                                         </div>
+                                                        @if (($type['interest_rate'] ?? 0) > 0 || ($type['monthly_fee'] ?? 0) > 0)
+                                                            <div
+                                                                class="mt-3 pt-2 border-t border-gray-200 text-xs text-gray-500">
+                                                                @if (($type['interest_rate'] ?? 0) > 0)
+                                                                    <span class="block"><i
+                                                                            class="fas fa-check-circle text-green-500 mr-1"></i>Interest
+                                                                        bearing</span>
+                                                                @endif
+                                                                @if (($type['monthly_fee'] ?? 0) > 0)
+                                                                    <span class="block"><i
+                                                                            class="fas fa-check-circle text-{{ $typeColor }}-500 mr-1"></i>Monthly
+                                                                        fee applies</span>
+                                                                @endif
+                                                            </div>
+                                                        @endif
                                                     </div>
                                                 </div>
                                             </button>
@@ -826,12 +845,20 @@
                                             {{ $customer_type === 'individual' ? 'Individual Account' : 'Organizational Account' }}
                                         </span>
                                     </div>
-                                    <div class="grid grid-cols-2 md:grid-cols-4 gap-6">
+                                    <div class="grid grid-cols-2 md:grid-cols-5 gap-4">
                                         <div class="bg-white p-4 rounded-lg border border-gray-200">
                                             <p class="text-xs font-medium text-gray-500 uppercase tracking-wider">
                                                 Interest Rate</p>
                                             <p class="text-lg font-bold text-gray-900 mt-1">
-                                                {{ number_format($selectedAccountType['interest_rate'], 2) }}%
+                                                {{ number_format($selectedAccountType['interest_rate'], 2) }}% <span
+                                                    class="text-xs text-gray-500">p.a.</span>
+                                            </p>
+                                        </div>
+                                        <div class="bg-white p-4 rounded-lg border border-gray-200">
+                                            <p class="text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                                Monthly Fee</p>
+                                            <p class="text-lg font-bold text-gray-900 mt-1">
+                                                {{ number_format($selectedAccountType['monthly_fee'], 2) }}
                                             </p>
                                         </div>
                                         <div class="bg-white p-4 rounded-lg border border-gray-200">
@@ -856,6 +883,18 @@
                                                 <i class="fas fa-check-circle mr-1"></i>
                                                 Active
                                             </span>
+                                        </div>
+                                    </div>
+
+                                    <!-- Additional info about processing -->
+                                    <div class="mt-4 pt-4 border-t border-gray-200">
+                                        <div class="flex items-center text-sm text-gray-600">
+                                            <i class="fas fa-calendar-alt mr-2 text-blue-500"></i>
+                                            <span>Monthly fee will be deducted on the 1st of each month.</span>
+                                        </div>
+                                        <div class="flex items-center text-sm text-gray-600 mt-1">
+                                            <i class="fas fa-calculator mr-2 text-green-500"></i>
+                                            <span>Interest is calculated monthly based on account balance.</span>
                                         </div>
                                     </div>
                                 </div>

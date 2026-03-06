@@ -38,6 +38,7 @@ class SystemAccount extends Model
     const TYPE_SUSPENSE = 'suspense';
     const TYPE_CLEARING = 'clearing';
     const TYPE_INCOME = 'income';
+    const TYPE_FEE_INCOME = 'charges';
     const TYPE_EXPENSE = 'expense';
 
     public function ledgerEntries(): HasMany

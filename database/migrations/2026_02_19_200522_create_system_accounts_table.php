@@ -16,6 +16,7 @@ return new class extends Migration
             $table->enum('type', [
                 'teller',           // Teller cash accounts
                 'charges',          // Fee/charge accounts
+                'fee_income',       // Fee income accounts (monthly fees, transaction fees)
                 'interest_income',  // Interest income accounts
                 'interest_expense', // Interest expense accounts
                 'suspense',         // Suspense accounts
@@ -46,6 +47,7 @@ return new class extends Migration
             ['code' => 'CHG-TRANS-001', 'name' => 'Transaction Fees', 'type' => 'charges', 'currency' => 'GHS', 'balance' => 0, 'description' => 'Transaction processing fees', 'created_at' => now()],
             ['code' => 'CHG-LATE-001', 'name' => 'Late Payment Fees', 'type' => 'charges', 'currency' => 'GHS', 'balance' => 0, 'description' => 'Late payment penalties', 'created_at' => now()],
             ['code' => 'CHG-OVER-001', 'name' => 'Overdraft Fees', 'type' => 'charges', 'currency' => 'GHS', 'balance' => 0, 'description' => 'Overdraft facility fees', 'created_at' => now()],
+            ['code' => 'CHG-MONTHLY-001', 'name' => 'Monthly Fee Income', 'type' => 'charges', 'currency' => 'GHS', 'balance' => 0, 'description' => 'Income from monthly fees', 'created_at' => now()],
 
             // Interest accounts
             ['code' => 'INT-INC-001', 'name' => 'Interest Income', 'type' => 'interest_income', 'currency' => 'GHS', 'balance' => 0, 'description' => 'Interest earned on loans', 'created_at' => now()],

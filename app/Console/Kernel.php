@@ -2,6 +2,7 @@
 
 namespace App\Console;
 
+use App\Jobs\ProcessMonthlyAccountFeesAndInterest;
 use Illuminate\Console\Scheduling\Schedule;
 use Illuminate\Foundation\Console\Kernel as ConsoleKernel;
 
@@ -27,22 +28,16 @@ class Kernel extends ConsoleKernel
             ->withoutOverlapping()
             ->sendOutputTo(storage_path('logs/loan-interest.log'));
 
-        // Process fees daily at 2 AM
-        $schedule->command('banking:process-automated-fees --type=fees')
-            ->dailyAt('02:00')
-            ->withoutOverlapping()
-            ->appendOutputTo(storage_path('logs/fee-processing.log'));
-
-        // Process interest daily at 3 AM
-        $schedule->command('banking:process-automated-fees --type=interest')
-            ->dailyAt('03:00')
-            ->withoutOverlapping()
-            ->appendOutputTo(storage_path('logs/interest-processing.log'));
-
-        // Month-end processing on the 1st of each month at 1 AM
-        $schedule->command('banking:process-automated-fees --type=all')
+        // Run monthly fee and interest processing on the 1st of each month at 1:00 AM
+        $schedule->job(new ProcessMonthlyAccountFeesAndInterest())
             ->monthlyOn(1, '01:00')
             ->withoutOverlapping()
-            ->appendOutputTo(storage_path('logs/month-end-processing.log'));
+            ->appendOutputTo(storage_path('logs/monthly-processing.log'));
+
+        // You can also add a daily check for new accounts that might have been missed
+        $schedule->call(function () {
+            $lastMonth = now()->subMonth()->startOfMonth();
+            ProcessMonthlyAccountFeesAndInterest::dispatch($lastMonth);
+        })->dailyAt('02:00');
     }
 }

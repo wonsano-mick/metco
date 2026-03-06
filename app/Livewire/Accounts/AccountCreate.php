@@ -617,12 +617,14 @@ class AccountCreate extends Component
                 'code' => $type->code,
                 'description' => $type->description,
                 'interest_rate' => $type->interest_rate,
+                'monthly_fee' => $type->monthly_fee,
                 'min_balance' => $type->min_balance,
                 'max_balance' => $type->max_balance,
                 'status' => $type->status,
                 'is_for_organizations' => $type->is_for_organizations ?? false,
                 'is_for_joint' => $type->is_for_joint ?? true, // Assume all accounts can be joint unless specified
                 'icon' => $type->icon ?? 'fa-wallet',
+                'features' => $type->features ?? [],
             ];
         })->toArray();
     }
@@ -1008,10 +1010,10 @@ class AccountCreate extends Component
     }
 
     public function testClick()
-{
-    Log::info('Test click method called');
-    session()->flash('debug', 'Test button clicked!');
-}
+    {
+        Log::info('Test click method called');
+        session()->flash('debug', 'Test button clicked!');
+    }
 
     // public function save()
     // {
@@ -1206,148 +1208,156 @@ class AccountCreate extends Component
     // }
 
     public function save()
-{
-    try {
-        // Validate based on customer type
-        $validationRules = [
-            'customer_type' => 'required|in:individual,organization,joint',
-            'currency' => 'required|string|max:3',
-            'minimum_balance' => 'required|numeric|min:0',
-            'overdraft_limit' => 'required|numeric|min:0',
-            'status' => 'required|in:active,dormant,restricted,closed',
-            'notes' => 'nullable|string|max:1000',
-            'generatedAccountNumber' => 'required|string|unique:accounts,account_number',
-            'termsAccepted' => 'required|accepted',
-        ];
+    {
+        try {
+            // Validate based on customer type
+            $validationRules = [
+                'customer_type' => 'required|in:individual,organization,joint',
+                'currency' => 'required|string|max:3',
+                'minimum_balance' => 'required|numeric|min:0',
+                'overdraft_limit' => 'required|numeric|min:0',
+                'status' => 'required|in:active,dormant,restricted,closed',
+                'notes' => 'nullable|string|max:1000',
+                'generatedAccountNumber' => 'required|string|unique:accounts,account_number',
+                'termsAccepted' => 'required|accepted',
+            ];
 
-        if ($this->customer_type === 'joint') {
-            $validationRules['jointAccountHolders'] = 'required|array|min:2|max:5';
-            $validationRules['primaryCustomerId'] = 'required|exists:customers,id';
-            $validationRules['jointAccountRelationship'] = 'required|string|min:3';
-            $validationRules['account_type_id'] = 'required|exists:account_types,id';
+            if ($this->customer_type === 'joint') {
+                $validationRules['jointAccountHolders'] = 'required|array|min:2|max:5';
+                $validationRules['primaryCustomerId'] = 'required|exists:customers,id';
+                $validationRules['jointAccountRelationship'] = 'required|string|min:3';
+                $validationRules['account_type_id'] = 'required|exists:account_types,id';
 
-            // Ensure all joint holders are valid customers
-            foreach ($this->jointAccountHolders as $index => $holder) {
-                $validationRules["jointAccountHolders.{$index}.id"] = 'required|exists:customers,id';
+                // Ensure all joint holders are valid customers
+                foreach ($this->jointAccountHolders as $index => $holder) {
+                    $validationRules["jointAccountHolders.{$index}.id"] = 'required|exists:customers,id';
+                }
+            } elseif ($this->customer_type === 'organization') {
+                $validationRules['customer_id'] = 'required|exists:customers,id';
+                $validationRules['account_type_id'] = 'required|exists:account_types,id';
+                $validationRules['signatoriesVerified'] = 'required|accepted';
+
+                // Validate signatories
+                foreach ($this->signatories as $index => $signatory) {
+                    $validationRules["signatories.{$index}.name"] = 'required|string|min:3';
+                    $validationRules["signatories.{$index}.email"] = 'required|email';
+                    $validationRules["signatories.{$index}.phone"] = 'required|string|min:10';
+                }
+            } else {
+                // Individual account
+                $validationRules['customer_id'] = 'required|exists:customers,id';
+                $validationRules['account_type_id'] = 'required|exists:account_types,id';
             }
-        } elseif ($this->customer_type === 'organization') {
-            $validationRules['customer_id'] = 'required|exists:customers,id';
-            $validationRules['account_type_id'] = 'required|exists:account_types,id';
-            $validationRules['signatoriesVerified'] = 'required|accepted';
 
-            // Validate signatories
-            foreach ($this->signatories as $index => $signatory) {
-                $validationRules["signatories.{$index}.name"] = 'required|string|min:3';
-                $validationRules["signatories.{$index}.email"] = 'required|email';
-                $validationRules["signatories.{$index}.phone"] = 'required|string|min:10';
+            $validatedData = $this->validate($validationRules);
+
+            DB::beginTransaction();
+
+            // Determine branch_id
+            if ($this->customer_type === 'joint') {
+                // For joint accounts, use the primary customer's branch
+                $primaryCustomer = Customer::find($this->primaryCustomerId);
+                $this->branch_id = $primaryCustomer->branch_id;
+            } else {
+                $customer = Customer::find($this->customer_id);
+                $this->branch_id = $customer->branch_id;
             }
-        } else {
-            // Individual account
-            $validationRules['customer_id'] = 'required|exists:customers,id';
-            $validationRules['account_type_id'] = 'required|exists:account_types,id';
-        }
 
-        $validatedData = $this->validate($validationRules);
-
-        DB::beginTransaction();
-
-        // Determine branch_id
-        if ($this->customer_type === 'joint') {
-            // For joint accounts, use the primary customer's branch
-            $primaryCustomer = Customer::find($this->primaryCustomerId);
-            $this->branch_id = $primaryCustomer->branch_id;
-        } else {
-            $customer = Customer::find($this->customer_id);
-            $this->branch_id = $customer->branch_id;
-        }
-
-        // Prepare metadata
-        $metadata = [
-            'created_by' => Auth::user()->id,
-            'opened_at' => now()->toISOString(),
-            'customer_type' => $this->customer_type,
-            'is_current_account' => $this->isCurrentAccount,
-        ];
-
-        if ($this->customer_type === 'joint') {
-            $metadata['joint_account_holders'] = collect($this->jointAccountHolders)->map(function ($holder) {
-                return [
-                    'customer_id' => $holder['id'],
-                    'name' => $holder['full_name'],
-                    'is_primary' => $holder['id'] == $this->primaryCustomerId,
-                ];
-            })->toArray();
-            $metadata['relationship_type'] = $this->jointAccountRelationship;
-        } elseif ($this->customer_type === 'organization') {
-            $metadata['signatories'] = $this->signatories;
-            $metadata['organization_type'] = $customer->organization_type ?? null;
-            $metadata['registration_number'] = $customer->registration_number ?? null;
-            $metadata['tax_identification_number'] = $customer->tax_identification_number ?? null;
-        }
-
-        // Create the account with 0 initial balance
-        $accountData = [
-            'customer_id' => $this->customer_type === 'joint' ? $this->primaryCustomerId : $this->customer_id,
-            'account_type_id' => $this->account_type_id,
-            'branch_id' => $this->branch_id,
-            'account_number' => $this->generatedAccountNumber,
-            'currency' => $this->currency,
-            'current_balance' => 0,
-            'available_balance' => 0,
-            'ledger_balance' => 0,
-            'minimum_balance' => $this->minimum_balance,
-            'overdraft_limit' => $this->overdraft_limit,
-            'status' => $this->status,
-            'opened_at' => now(),
-            'notes' => $this->notes,
-            'metadata' => $metadata,
-        ];
-
-        $account = Account::create($accountData);
-
-        // For joint accounts, create account holder relationships
-        if ($this->customer_type === 'joint' && method_exists($account, 'jointHolders')) {
-            foreach ($this->jointAccountHolders as $holder) {
-                $account->jointHolders()->create([
-                    'customer_id' => $holder['id'],
-                    'is_primary' => $holder['id'] == $this->primaryCustomerId,
-                    'relationship_type' => $this->jointAccountRelationship,
-                    'status' => 'active',
-                    'added_at' => now(),
-                ]);
-            }
-        }
-
-        // Log activity
-        activity()
-            ->causedBy(Auth::user())
-            ->performedOn($account)
-            ->withProperties([
-                'account_number' => $account->account_number,
+            // Prepare metadata
+            $metadata = [
+                'created_by' => Auth::user()->id,
+                'opened_at' => now()->toISOString(),
                 'customer_type' => $this->customer_type,
                 'is_current_account' => $this->isCurrentAccount,
-            ])
-            ->log($logMessage ?? 'Account created');
+                'interest_rate' => $accountType->interest_rate ?? 0,
+                'monthly_fee' => $accountType->monthly_fee ?? 0,
+                'interest_rate_applicable' => ($accountType->interest_rate ?? 0) > 0,
+                'monthly_fee_applicable' => ($accountType->monthly_fee ?? 0) > 0,
+                'monthly_processing_info' => [
+                    'next_processing_date' => now()->addMonth()->startOfMonth()->toDateString(),
+                    'fee_deduction_day' => 1, // First day of month
+                    'interest_calculation' => 'monthly_on_balance',
+                ]
+            ];
 
-        DB::commit();
+            if ($this->customer_type === 'joint') {
+                $metadata['joint_account_holders'] = collect($this->jointAccountHolders)->map(function ($holder) {
+                    return [
+                        'customer_id' => $holder['id'],
+                        'name' => $holder['full_name'],
+                        'is_primary' => $holder['id'] == $this->primaryCustomerId,
+                    ];
+                })->toArray();
+                $metadata['relationship_type'] = $this->jointAccountRelationship;
+            } elseif ($this->customer_type === 'organization') {
+                $metadata['signatories'] = $this->signatories;
+                $metadata['organization_type'] = $customer->organization_type ?? null;
+                $metadata['registration_number'] = $customer->registration_number ?? null;
+                $metadata['tax_identification_number'] = $customer->tax_identification_number ?? null;
+            }
 
-        session()->flash('success', 'Account created successfully. You can now make a deposit to activate the account.');
-        return redirect()->route('accounts.show', $account->id)->with('show_deposit_modal', true);
+            // Create the account with 0 initial balance
+            $accountData = [
+                'customer_id' => $this->customer_type === 'joint' ? $this->primaryCustomerId : $this->customer_id,
+                'account_type_id' => $this->account_type_id,
+                'branch_id' => $this->branch_id,
+                'account_number' => $this->generatedAccountNumber,
+                'currency' => $this->currency,
+                'current_balance' => 0,
+                'available_balance' => 0,
+                'ledger_balance' => 0,
+                'minimum_balance' => $this->minimum_balance,
+                'overdraft_limit' => $this->overdraft_limit,
+                'status' => $this->status,
+                'opened_at' => now(),
+                'notes' => $this->notes,
+                'metadata' => $metadata,
+            ];
 
-    } catch (\Illuminate\Validation\ValidationException $e) {
-        DB::rollBack();
-        Log::error('Validation failed:', ['errors' => $e->errors()]);
-        throw $e;
-    } catch (\Exception $e) {
-        DB::rollBack();
-        Log::error('Account creation failed: ' . $e->getMessage(), [
-            'exception' => $e,
-            'trace' => $e->getTraceAsString()
-        ]);
-        session()->flash('error', 'Failed to create account: ' . $e->getMessage());
-        $this->addError('general', 'Failed to create account: ' . $e->getMessage());
+            $account = Account::create($accountData);
+
+            // For joint accounts, create account holder relationships
+            if ($this->customer_type === 'joint' && method_exists($account, 'jointHolders')) {
+                foreach ($this->jointAccountHolders as $holder) {
+                    $account->jointHolders()->create([
+                        'customer_id' => $holder['id'],
+                        'is_primary' => $holder['id'] == $this->primaryCustomerId,
+                        'relationship_type' => $this->jointAccountRelationship,
+                        'status' => 'active',
+                        'added_at' => now(),
+                    ]);
+                }
+            }
+
+            // Log activity
+            activity()
+                ->causedBy(Auth::user())
+                ->performedOn($account)
+                ->withProperties([
+                    'account_number' => $account->account_number,
+                    'customer_type' => $this->customer_type,
+                    'is_current_account' => $this->isCurrentAccount,
+                ])
+                ->log($logMessage ?? 'Account created');
+
+            DB::commit();
+
+            session()->flash('success', 'Account created successfully. You can now make a deposit to activate the account.');
+            return redirect()->route('accounts.show', $account->id)->with('show_deposit_modal', true);
+        } catch (\Illuminate\Validation\ValidationException $e) {
+            DB::rollBack();
+            Log::error('Validation failed:', ['errors' => $e->errors()]);
+            throw $e;
+        } catch (\Exception $e) {
+            DB::rollBack();
+            Log::error('Account creation failed: ' . $e->getMessage(), [
+                'exception' => $e,
+                'trace' => $e->getTraceAsString()
+            ]);
+            session()->flash('error', 'Failed to create account: ' . $e->getMessage());
+            $this->addError('general', 'Failed to create account: ' . $e->getMessage());
+        }
     }
-}
 
     /**
      * Get currency symbol

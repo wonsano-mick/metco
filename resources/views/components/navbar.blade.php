@@ -43,7 +43,19 @@
                                 All Accounts
                             </a>
                             <div class="border-t border-gray-100 my-2"></div>
-                            <a href="{{ route('fee.configurations') }}"
+                            <a href="{{ route('accounts.account-types') }}"
+                                class="block px-4 py-2 text-sm {{ request()->routeIs('accounts.*') ? 'text-blue-600 bg-blue-50' : 'text-gray-700 hover:bg-blue-50 hover:text-blue-600' }}">
+                                <i class="fas fa-percent mr-3 w-4"></i>
+                                Account Types
+                            </a>
+                            @can('process monthly fees and interest')
+                            <a href="{{ route('accounts.monthly-processing') }}"
+                                class="block px-4 py-2 text-sm {{ request()->routeIs('accounts.*') ? 'text-blue-600 bg-blue-50' : 'text-gray-700 hover:bg-blue-50 hover:text-blue-600' }}">
+                                <i class="fas fa-chart-line mr-3 w-4"></i>
+                                Monthly Processing
+                            </a>
+                            @endcan
+                            {{-- <a href="{{ route('fee.configurations') }}"
                                 class="block px-4 py-2 text-sm {{ request()->routeIs('fee.*') ? 'text-blue-600 bg-blue-50' : 'text-gray-700 hover:bg-blue-50 hover:text-blue-600' }}">
                                 <i class="fas fa-percent mr-3 w-4"></i>
                                 Fee on Account
@@ -52,7 +64,7 @@
                                 class="block px-4 py-2 text-sm {{ request()->routeIs('interest.*') ? 'text-blue-600 bg-blue-50' : 'text-gray-700 hover:bg-blue-50 hover:text-blue-600' }}">
                                 <i class="fas fa-chart-line mr-3 w-4"></i>
                                 Interest on Account
-                            </a>
+                            </a> --}}
                         </div>
                     </div>
 
@@ -71,15 +83,15 @@
                         Reports
                     </a>
                     
-                    @if(auth()->user()->role === 'super-admin' || auth()->user()->role === 'manager')
-                    <a href="{{ route('users.index') }}"
-                        class="{{ request()->routeIs('users.*') ? 'text-red-600 border-b-2 border-red-400' : 'text-gray-700 hover:text-blue-600' }} px-3 py-2 text-sm font-medium">
-                        Manage Users
-                    </a>
-                    
                     <a href="{{ route('tellers.index') }}"
                         class="{{ request()->routeIs('tellers.*') ? 'text-purple-600 border-b-2 border-purple-600' : 'text-gray-700 hover:text-blue-600' }} px-3 py-2 text-sm font-medium">
                         Tellers
+                    </a>
+                    
+                    @if(auth()->user()->role === 'super-admin' || auth()->user()->role === 'manager')
+                    <a href="{{ route('users.index') }}"
+                        class="{{ request()->routeIs('users.*') ? 'text-red-600 border-b-2 border-red-400' : 'text-gray-700 hover:text-blue-600' }} px-3 py-2 text-sm font-medium">
+                        Users
                     </a>
                     @endif
                 </div>

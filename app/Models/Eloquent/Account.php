@@ -2,12 +2,11 @@
 
 namespace App\Models\Eloquent;
 
-use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
-use Illuminate\Database\Eloquent\SoftDeletes;
+use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
-use Ramsey\Uuid\Uuid;
+use Illuminate\Database\Eloquent\SoftDeletes;
 
 class Account extends Model
 {
@@ -153,4 +152,30 @@ class Account extends Model
     {
         return $this->belongsTo(Customer::class, 'customer_id', 'id');
     }
+
+    public function monthlyProcessings(): HasMany
+    {
+        return $this->hasMany(MonthlyAccountProcessing::class, 'account_id');
+    }
+
+    public function getAvailableBalanceAttribute()
+    {
+        // Your existing logic or this default
+        return $this->current_balance - $this->minimum_balance;
+    }
+
+    public function getLastMonthlyProcessingAttribute()
+    {
+        return $this->monthlyProcessings()->latest('processed_at')->first();
+    }
+
+    public function getMonthlyFeeAttribute()
+    {
+        return $this->accountType?->monthly_fee ?? 0;
+    }
+
+    public function getInterestRateAttribute()
+    {
+        return $this->accountType?->interest_rate ?? 0;
+    } 
 }

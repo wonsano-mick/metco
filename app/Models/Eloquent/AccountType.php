@@ -15,26 +15,20 @@ class AccountType extends Model
 
     protected $table = 'account_types';
 
-    // protected $primaryKey = 'id';
-    // public $incrementing = false;
-    // protected $keyType = 'string';
-
     protected $fillable = [
-        // 'id',
-        // 'tenant_id',
         'is_for_organizations',
         'code',
         'name',
         'description',
         'min_balance',
         'max_balance',
+        'monthly_fee',
         'interest_rate',
         'is_active',
     ];
 
     protected $casts = [
         'id' => 'integer',
-        // 'tenant_id' => 'string',
         'min_balance' => 'decimal:4',
         'max_balance' => 'decimal:4',
         'interest_rate' => 'decimal:4',
@@ -42,22 +36,6 @@ class AccountType extends Model
         'created_at' => 'datetime',
         'updated_at' => 'datetime',
     ];
-
-    // protected static function boot()
-    // {
-    //     parent::boot();
-
-    //     static::creating(function ($model) {
-    //         if (empty($model->id)) {
-    //             $model->id = Uuid::uuid4()->toString();
-    //         }
-    //     });
-    // }
-
-    public function tenant(): BelongsTo
-    {
-        return $this->belongsTo(Tenant::class);
-    }
 
     public function accounts(): HasMany
     {
@@ -88,5 +66,15 @@ class AccountType extends Model
     public function getInterestRate(): float
     {
         return (float) $this->interest_rate;
+    }
+
+    public function monthlyProcessings()
+    {
+        return $this->hasMany(AccountMonthlyProcessing::class);
+    }
+
+    public function scopeActive($query)
+    {
+        return $query->where('is_active', true);
     }
 }

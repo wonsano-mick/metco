@@ -38,7 +38,8 @@ return new class extends Migration
                 'atm_withdrawal',
                 'online_transfer',
                 'standing_order',
-                'direct_debit'
+                'direct_debit',
+                'monthly_interest'
             ])->default('deposit');
 
             $table->enum('status', [
@@ -54,13 +55,14 @@ return new class extends Migration
 
             $table->enum('category', [
                 'initial_deposit',
-                'teller_topup',    
-            'transfer',
+                'teller_topup',
+                'transfer',
                 'deposit',
                 'withdrawal',
                 'payment',
                 'refund',
                 'fee',
+                'charge',
                 'interest',
                 'adjustment',
                 'other'

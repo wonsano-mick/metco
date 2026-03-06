@@ -68,6 +68,8 @@ class RolesAndPermissionsSeeder extends Seeder
             'deposit funds',
             'freeze accounts',
             'export account statements',
+            'process monthly fees and interest',
+            'manage account types',
 
             // Transaction permissions
             'view transactions',
@@ -135,8 +137,8 @@ class RolesAndPermissionsSeeder extends Seeder
                 'create transactions',
                 'view customers',
                 'view reports',
-            'generate reports',
-            'export data',
+                'generate reports',
+                'export data',
                 'export account statements',
             ],
             'manager' => [
@@ -171,6 +173,8 @@ class RolesAndPermissionsSeeder extends Seeder
                 'review loans',
                 'disburse loans',
                 'process loan payment',
+                'process monthly fees and interest',
+                'manage account types',
             ],
             'relationship_manager' => [
                 'view customers',
@@ -203,6 +207,8 @@ class RolesAndPermissionsSeeder extends Seeder
                 'deposit funds',
                 'freeze accounts',
                 'export account statements',
+                'process monthly fees and interest',
+                'manage account types',
             ],
             'loan-officer' => [
                 'view customers',
@@ -217,8 +223,10 @@ class RolesAndPermissionsSeeder extends Seeder
                 'disburse loans',
                 'process loan payment',
                 'export account statements',
+                'process monthly fees and interest',
+                'manage account types',
             ],
-            'loan committee'=>[
+            'loan committee' => [
                 'view loans',
                 'review loans',
                 'reject loans',
@@ -248,7 +256,7 @@ class RolesAndPermissionsSeeder extends Seeder
                 'status' => 'active',
             ]
         );
-        
+
         $users = [
             [
                 // 'id' => Uuid::uuid4()->toString(),
