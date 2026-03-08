@@ -4,6 +4,7 @@ namespace App\Services\Transaction;
 
 use App\Models\Eloquent\Account;
 use App\Models\Eloquent\AuditLog;
+use App\Models\Eloquent\DailyBalance;
 use App\Models\Eloquent\LedgerEntry;
 use App\Models\Eloquent\SystemAccount;
 use App\Models\Eloquent\SystemLedgerEntry;
@@ -26,7 +27,7 @@ class EnhancedTransactionService
     public function __construct($userId = null, $branchId = null)
     {
         $user = Auth::user();
-        
+
         $this->userId = $userId ?? ($user ? $user->id : null);
         $this->branchId = $branchId ?? ($user ? $user->branch_id : null);
     }
@@ -90,6 +91,39 @@ class EnhancedTransactionService
 
                 // Update teller account balance
                 $tellerAccount->increment('balance', $data['amount']);
+
+                // Refresh account to get updated balance
+                $account->refresh();
+                /*
+            |--------------------------------------------------------------------------
+            | UPDATE DAILY BALANCE RECORD
+            |--------------------------------------------------------------------------
+            | Record today's closing balance so it can be used later to compute
+            | the Average Daily Balance (ADB) for interest calculation.
+            */
+
+                $today = now()->toDateString();
+
+                $dailyBalance = DailyBalance::where('account_id', $account->id)
+                    ->whereDate('balance_date', $today)
+                    ->first();
+
+                if ($dailyBalance) {
+
+                    // Update existing record for today
+                    $dailyBalance->update([
+                        'closing_balance' => $account->current_balance,
+                    ]);
+                } else {
+
+                    // Create new daily balance record
+                    DailyBalance::create([
+                        'account_id' => $account->id,
+                        'balance_date' => $today,
+                        'opening_balance' => $data['amount'],
+                        'closing_balance' => $data['amount'],
+                    ]);
+                }
 
                 // Mark transaction as completed
                 $transaction->update([
@@ -183,6 +217,40 @@ class EnhancedTransactionService
                 $account->decrement('available_balance', $data['amount']);
                 $tellerAccount->decrement('balance', $data['amount']);
 
+                // Refresh account to get updated balances
+                $account->refresh();
+
+                /*
+            |--------------------------------------------------------------------------
+            | UPDATE DAILY BALANCE RECORD
+            |--------------------------------------------------------------------------
+            | Record today's closing balance so it can be used later to compute
+            | the Average Daily Balance (ADB) for interest calculation.
+            */
+
+                $today = now()->toDateString();
+
+                $dailyBalance = DailyBalance::where('account_id', $account->id)
+                    ->whereDate('balance_date', $today)
+                    ->first();
+
+                if ($dailyBalance) {
+
+                    // Update existing record for today
+                    $dailyBalance->update([
+                        'closing_balance' => $account->current_balance,
+                    ]);
+                } else {
+
+                    // Create new daily balance record
+                    DailyBalance::create([
+                        'account_id' => $account->id,
+                        'balance_date' => $today,
+                        'opening_balance' => $account->current_balance + $data['amount'],
+                        'closing_balance' => $account->current_balance,
+                    ]);
+                }
+
                 $transaction->update([
                     'status' => 'completed',
                     'completed_at' => now(),
@@ -265,6 +333,40 @@ class EnhancedTransactionService
 
                 // Update teller account balance
                 $tellerAccount->increment('balance', $data['amount']);
+
+                // Refresh account to get updated balances
+                $account->refresh();
+
+                /*
+            |--------------------------------------------------------------------------
+            | UPDATE DAILY BALANCE RECORD
+            |--------------------------------------------------------------------------
+            | Record today's closing balance so it can be used later to compute
+            | the Average Daily Balance (ADB) for interest calculation.
+            */
+
+                $today = now()->toDateString();
+
+                $dailyBalance = DailyBalance::where('account_id', $account->id)
+                    ->whereDate('balance_date', $today)
+                    ->first();
+
+                if ($dailyBalance) {
+
+                    // Update existing record for today
+                    $dailyBalance->update([
+                        'closing_balance' => $account->current_balance,
+                    ]);
+                } else {
+
+                    // Create new daily balance record
+                    DailyBalance::create([
+                        'account_id' => $account->id,
+                        'balance_date' => $today,
+                        'opening_balance' => $account->current_balance + $data['amount'],
+                        'closing_balance' => $account->current_balance,
+                    ]);
+                }
 
                 // Mark transaction as completed
                 $transaction->update([
@@ -527,6 +629,40 @@ class EnhancedTransactionService
                 $account->decrement('available_balance', $feeAmount);
                 $feeAccount->increment('balance', $feeAmount);
 
+                // Refresh account to get updated balances
+                $account->refresh();
+
+                /*
+            |--------------------------------------------------------------------------
+            | UPDATE DAILY BALANCE RECORD
+            |--------------------------------------------------------------------------
+            | Record today's closing balance so it can be used later to compute
+            | the Average Daily Balance (ADB) for interest calculation.
+            */
+
+                $today = now()->toDateString();
+
+                $dailyBalance = DailyBalance::where('account_id', $account->id)
+                    ->whereDate('balance_date', $today)
+                    ->first();
+
+                if ($dailyBalance) {
+
+                    // Update existing record for today
+                    $dailyBalance->update([
+                        'closing_balance' => $account->current_balance,
+                    ]);
+                } else {
+
+                    // Create new daily balance record
+                    DailyBalance::create([
+                        'account_id' => $account->id,
+                        'balance_date' => $today,
+                        'opening_balance' => $account->current_balance + $feeAmount,
+                        'closing_balance' => $account->current_balance,
+                    ]);
+                }
+
                 $transaction->update([
                     'status' => 'completed',
                     'completed_at' => now(),
@@ -734,6 +870,40 @@ class EnhancedTransactionService
                 $account->increment('current_balance', $interestAmount);
                 $account->increment('available_balance', $interestAmount);
                 $interestExpenseAccount->decrement('balance', $interestAmount);
+
+                // Refresh account to get updated balances
+                $account->refresh();
+
+                /*
+            |--------------------------------------------------------------------------
+            | UPDATE DAILY BALANCE RECORD
+            |--------------------------------------------------------------------------
+            | Record today's closing balance so it can be used later to compute
+            | the Average Daily Balance (ADB) for interest calculation.
+            */
+
+                $today = now()->toDateString();
+
+                $dailyBalance = DailyBalance::where('account_id', $account->id)
+                    ->whereDate('balance_date', $today)
+                    ->first();
+
+                if ($dailyBalance) {
+
+                    // Update existing record for today
+                    $dailyBalance->update([
+                        'closing_balance' => $account->current_balance,
+                    ]);
+                } else {
+
+                    // Create new daily balance record
+                    DailyBalance::create([
+                        'account_id' => $account->id,
+                        'balance_date' => $today,
+                        'opening_balance' => $account->current_balance + $interestAmount,
+                        'closing_balance' => $account->current_balance,
+                    ]);
+                }
 
                 $transaction->update([
                     'status' => 'completed',

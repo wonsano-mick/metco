@@ -177,5 +177,11 @@ class Account extends Model
     public function getInterestRateAttribute()
     {
         return $this->accountType?->interest_rate ?? 0;
-    } 
+    }
+
+    // relationship to daily balances
+    public function dailyBalances()
+    {
+        return $this->hasMany(DailyBalance::class);
+    }
 }

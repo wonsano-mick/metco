@@ -23,6 +23,7 @@ return new class extends Migration
             $table->decimal('ledger_balance', 15, 4)->default(0);
             $table->decimal('overdraft_limit', 15, 4)->default(0);
             $table->decimal('minimum_balance', 15, 4)->default(0);
+            // $table->decimal('average_daily_balance', 15, 4)->default(0);
             $table->enum('status', ['active', 'frozen', 'closed', 'pending', 'dormant', 'suspended'])
                 ->default('pending');
             $table->dateTime('opened_at')->nullable();

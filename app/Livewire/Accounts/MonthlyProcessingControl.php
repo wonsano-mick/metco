@@ -106,11 +106,102 @@ class MonthlyProcessingControl extends Component
         }
     }
 
+    // protected function processAccount($account, Carbon $processingMonth, EnhancedTransactionService $transactionService)
+    // {
+    //     DB::beginTransaction();
+
+    //     try {
+    //         $this->logMessage("Processing account: {$account->account_number} ({$account->customer?->full_name})");
+
+    //         $balanceBefore = $account->current_balance;
+    //         $monthlyFee = $account->accountType?->monthly_fee ?? 0;
+    //         $monthlyInterest = 0;
+    //         $feeTransactionId = null;
+    //         $interestTransactionId = null;
+
+    //         // Calculate monthly interest if applicable
+    //         if ($account->accountType && $account->accountType->interest_rate > 0) {
+    //             $annualRate = $account->accountType->interest_rate / 100;
+    //             $monthlyRate = $annualRate / 12;
+    //             $monthlyInterest = $balanceBefore * $monthlyRate;
+    //             $monthlyInterest = round($monthlyInterest, 2);
+    //         }
+
+    //         // Apply monthly fee if applicable
+    //         if ($monthlyFee > 0) {
+    //             try {
+    //                 // Check if account has sufficient balance
+    //                 if ($account->available_balance >= $monthlyFee) {
+    //                     $feeTransaction = $transactionService->chargeMonthlyFee(
+    //                         $account,
+    //                         $monthlyFee,
+    //                         $processingMonth
+    //                     );
+    //                     $feeTransactionId = $feeTransaction->id;
+    //                     $this->totalFeesCharged += $monthlyFee;
+    //                     $this->logMessage("  - Charged monthly fee: " . number_format($monthlyFee, 2));
+    //                 } else {
+    //                     $this->logMessage("  - Insufficient funds for monthly fee: " . number_format($monthlyFee, 2) . " (Available: " . number_format($account->available_balance, 2) . ")", 'warning');
+    //                 }
+    //             } catch (\Exception $e) {
+    //                 $this->logMessage("  - Failed to charge monthly fee: " . $e->getMessage(), 'error');
+    //                 throw $e;
+    //             }
+    //         }
+
+    //         // Apply monthly interest if applicable
+    //         if ($monthlyInterest > 0.01) { // Only credit if interest is at least 1 cent
+    //             try {
+    //                 $interestTransaction = $transactionService->creditMonthlyInterest(
+    //                     $account,
+    //                     $monthlyInterest,
+    //                     $processingMonth
+    //                 );
+    //                 $interestTransactionId = $interestTransaction->id;
+    //                 $this->totalInterestCredited += $monthlyInterest;
+    //                 $this->logMessage("  - Credited interest: " . number_format($monthlyInterest, 2));
+    //             } catch (\Exception $e) {
+    //                 $this->logMessage("  - Failed to credit interest: " . $e->getMessage(), 'error');
+    //                 throw $e;
+    //             }
+    //         }
+
+    //         // Refresh account to get updated balance
+    //         $account->refresh();
+    //         $balanceAfter = $account->current_balance;
+
+    //         // Create processing record
+    //         MonthlyAccountProcessing::create([
+    //             'account_id' => $account->id,
+    //             'processing_month' => $processingMonth,
+    //             'balance_before' => $balanceBefore,
+    //             'monthly_fee_applied' => $monthlyFee,
+    //             'interest_earned' => $monthlyInterest,
+    //             'balance_after' => $balanceAfter,
+    //             'fee_transaction_id' => $feeTransactionId,
+    //             'interest_transaction_id' => $interestTransactionId,
+    //             'processed_at' => now(),
+    //         ]);
+
+    //         DB::commit();
+    //         $this->processedCount++;
+
+    //         $netChange = $monthlyInterest - $monthlyFee;
+    //         $changeSymbol = $netChange >= 0 ? '+' : '';
+    //         $this->logMessage("  ✓ Completed - Net change: {$changeSymbol}" . number_format($netChange, 2));
+    //     } catch (\Exception $e) {
+    //         DB::rollBack();
+    //         $this->failedCount++;
+    //         $this->logMessage("  ✗ Failed for account {$account->account_number}: " . $e->getMessage(), 'error');
+    //     }
+    // }
+
     protected function processAccount($account, Carbon $processingMonth, EnhancedTransactionService $transactionService)
     {
         DB::beginTransaction();
 
         try {
+
             $this->logMessage("Processing account: {$account->account_number} ({$account->customer?->full_name})");
 
             $balanceBefore = $account->current_balance;
@@ -119,58 +210,104 @@ class MonthlyProcessingControl extends Component
             $feeTransactionId = null;
             $interestTransactionId = null;
 
-            // Calculate monthly interest if applicable
+            /*
+        |--------------------------------------------------------------------------
+        | HIGH PERFORMANCE MONTHLY INTEREST CALCULATION
+        |--------------------------------------------------------------------------
+        */
+
             if ($account->accountType && $account->accountType->interest_rate > 0) {
+
                 $annualRate = $account->accountType->interest_rate / 100;
-                $monthlyRate = $annualRate / 12;
-                $monthlyInterest = $balanceBefore * $monthlyRate;
-                $monthlyInterest = round($monthlyInterest, 2);
+
+                $startOfMonth = $processingMonth->copy()->startOfMonth();
+                $endOfMonth = $processingMonth->copy()->endOfMonth();
+
+                $monthlyInterest = DB::table('daily_balances')
+                    ->where('account_id', $account->id)
+                    ->whereBetween('balance_date', [$startOfMonth, $endOfMonth])
+                    ->selectRaw('SUM((closing_balance * ?) / 365) as interest', [$annualRate])
+                    ->value('interest');
+
+                $monthlyInterest = round($monthlyInterest ?? 0, 2);
             }
 
-            // Apply monthly fee if applicable
+            /*
+        |--------------------------------------------------------------------------
+        | APPLY MONTHLY FEE
+        |--------------------------------------------------------------------------
+        */
+
             if ($monthlyFee > 0) {
+
                 try {
-                    // Check if account has sufficient balance
+
                     if ($account->available_balance >= $monthlyFee) {
+
                         $feeTransaction = $transactionService->chargeMonthlyFee(
                             $account,
                             $monthlyFee,
                             $processingMonth
                         );
+
                         $feeTransactionId = $feeTransaction->id;
                         $this->totalFeesCharged += $monthlyFee;
+
                         $this->logMessage("  - Charged monthly fee: " . number_format($monthlyFee, 2));
                     } else {
-                        $this->logMessage("  - Insufficient funds for monthly fee: " . number_format($monthlyFee, 2) . " (Available: " . number_format($account->available_balance, 2) . ")", 'warning');
+
+                        $this->logMessage(
+                            "  - Insufficient funds for monthly fee: "
+                                . number_format($monthlyFee, 2)
+                                . " (Available: "
+                                . number_format($account->available_balance, 2)
+                                . ")",
+                            'warning'
+                        );
                     }
                 } catch (\Exception $e) {
+
                     $this->logMessage("  - Failed to charge monthly fee: " . $e->getMessage(), 'error');
                     throw $e;
                 }
             }
 
-            // Apply monthly interest if applicable
-            if ($monthlyInterest > 0.01) { // Only credit if interest is at least 1 cent
+            /*
+        |--------------------------------------------------------------------------
+        | APPLY MONTHLY INTEREST
+        |--------------------------------------------------------------------------
+        */
+
+            if ($monthlyInterest > 0.01) {
+
                 try {
+
                     $interestTransaction = $transactionService->creditMonthlyInterest(
                         $account,
                         $monthlyInterest,
                         $processingMonth
                     );
+
                     $interestTransactionId = $interestTransaction->id;
                     $this->totalInterestCredited += $monthlyInterest;
+
                     $this->logMessage("  - Credited interest: " . number_format($monthlyInterest, 2));
                 } catch (\Exception $e) {
+
                     $this->logMessage("  - Failed to credit interest: " . $e->getMessage(), 'error');
                     throw $e;
                 }
             }
 
-            // Refresh account to get updated balance
+            /*
+        |--------------------------------------------------------------------------
+        | FINAL ACCOUNT STATE
+        |--------------------------------------------------------------------------
+        */
+
             $account->refresh();
             $balanceAfter = $account->current_balance;
 
-            // Create processing record
             MonthlyAccountProcessing::create([
                 'account_id' => $account->id,
                 'processing_month' => $processingMonth,
@@ -184,15 +321,25 @@ class MonthlyProcessingControl extends Component
             ]);
 
             DB::commit();
+
             $this->processedCount++;
 
             $netChange = $monthlyInterest - $monthlyFee;
             $changeSymbol = $netChange >= 0 ? '+' : '';
-            $this->logMessage("  ✓ Completed - Net change: {$changeSymbol}" . number_format($netChange, 2));
+
+            $this->logMessage(
+                "  ✓ Completed - Net change: {$changeSymbol}" . number_format($netChange, 2)
+            );
         } catch (\Exception $e) {
+
             DB::rollBack();
+
             $this->failedCount++;
-            $this->logMessage("  ✗ Failed for account {$account->account_number}: " . $e->getMessage(), 'error');
+
+            $this->logMessage(
+                "  ✗ Failed for account {$account->account_number}: " . $e->getMessage(),
+                'error'
+            );
         }
     }
 

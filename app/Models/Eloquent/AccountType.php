@@ -2,11 +2,9 @@
 
 namespace App\Models\Eloquent;
 
-use Ramsey\Uuid\Uuid;
 use App\Traits\HasDatabaseChecks;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\HasMany;
-use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 
 class AccountType extends Model
@@ -66,11 +64,6 @@ class AccountType extends Model
     public function getInterestRate(): float
     {
         return (float) $this->interest_rate;
-    }
-
-    public function monthlyProcessings()
-    {
-        return $this->hasMany(AccountMonthlyProcessing::class);
     }
 
     public function scopeActive($query)
