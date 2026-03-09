@@ -22,6 +22,9 @@ class AccountStatement extends Component
     public Account $account;
     public Customer $customer;
 
+    // Add this new property
+    public $showFilters = false;
+
     // Filter properties
     #[Url(history: true)]
     public $dateRange = 'this_month';
@@ -110,6 +113,11 @@ class AccountStatement extends Component
 
             session()->flash('error', 'Unable to load account statement. Please try again.');
         }
+    }
+
+    public function toggleFilters()
+    {
+        $this->showFilters = !$this->showFilters;
     }
 
     public function updatedDateRange($value)
@@ -358,17 +366,21 @@ class AccountStatement extends Component
 
     private function calculateRunningBalance($transactions)
     {
-        $balance = $this->closingBalance;
+        // Start with opening balance (balance before the first transaction in the period)
+        $balance = $this->openingBalance;
         $runningBalances = [];
 
+        // Sort transactions chronologically (oldest first)
+        $sortedTransactions = $transactions->sortBy('initiated_at');
+
         // Calculate running balance for each transaction (from oldest to newest)
-        foreach ($transactions->reverse() as $transaction) {
+        foreach ($sortedTransactions as $transaction) {
             if ($transaction->destination_account_id == $this->account->id) {
-                // Credit transaction - subtract from balance going backwards
-                $balance -= $transaction->amount;
-            } elseif ($transaction->source_account_id == $this->account->id) {
-                // Debit transaction - add to balance going backwards
+                // Credit transaction - add to balance
                 $balance += $transaction->amount;
+            } elseif ($transaction->source_account_id == $this->account->id) {
+                // Debit transaction - subtract from balance
+                $balance -= $transaction->amount;
             }
             $runningBalances[$transaction->id] = $balance;
         }
@@ -379,7 +391,10 @@ class AccountStatement extends Component
 
     public function getTransactionsProperty()
     {
-        return $this->loadStatementData();
+        $transactions = $this->loadStatementData();
+        // Calculate running balances after loading transactions
+        $this->calculateRunningBalance($transactions);
+        return $transactions;
     }
 
     public function exportStatement()
