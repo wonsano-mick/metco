@@ -39,7 +39,8 @@ return new class extends Migration
                 'online_transfer',
                 'standing_order',
                 'direct_debit',
-                'monthly_interest'
+                'monthly_interest',
+                'loan_disbursement',
             ])->default('deposit');
 
             $table->enum('status', [
@@ -79,7 +80,7 @@ return new class extends Migration
             $table->string('description')->nullable();
             $table->text('notes')->nullable()->comment('Internal notes about the transaction');
             $table->json('metadata')->nullable()->comment('Additional transaction data');
-            $table->json('failure_reason')->nullable()->comment('Details if transaction failed');
+            $table->text('failure_reason')->nullable()->comment('Details if transaction failed');
 
             // Parties Involved
             $table->foreignId('initiated_by')->nullable()->constrained('users')->nullOnDelete();

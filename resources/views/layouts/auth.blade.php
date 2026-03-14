@@ -17,7 +17,7 @@
                 <div class="w-60 h-25 flex items-center justify-center">
                     <img 
                         src="{{ asset('images/metco_logo.png') }}" 
-                        alt="METCU Logo"
+                        alt="METCO Logo"
                         class="max-w-full max-h-full object-contain"
                         onerror="this.onerror=null; this.src='https://via.placeholder.com/192x64?text=METCU+Logo'; this.alt='METCU Logo Placeholder';"
                     >

@@ -5,12 +5,10 @@ namespace App\Livewire\Loans;
 use Livewire\Component;
 use Livewire\Attributes\Layout;
 use App\Models\Eloquent\Customer;
-use App\Models\Eloquent\Account;
 use App\Models\Eloquent\Loan;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Gate;
 use Livewire\WithFileUploads;
-use Illuminate\Database\Eloquent\Collection;
 
 class LoanApplication extends Component
 {
@@ -82,6 +80,11 @@ class LoanApplication extends Component
         $this->startDate = now()->addDays(7)->format('Y-m-d');
         $this->loadInterestRates();
         $this->customerAccounts = collect();
+
+        // Initialize processing fee if amount is set
+        if ($this->amount) {
+            $this->calculateProcessingFee();
+        }
     }
 
     private function loadInterestRates()
@@ -109,6 +112,16 @@ class LoanApplication extends Component
     public function updatedAmount()
     {
         $this->calculatePayments();
+        $this->calculateProcessingFee();
+    }
+
+    public function calculateProcessingFee()
+    {
+        if ($this->amount) {
+            $this->processingFee = round((float) $this->amount * 0.02, 2); // 2% of loan amount
+        } else {
+            $this->processingFee = 0;
+        }
     }
 
     public function updatedTermMonths($value)
@@ -145,6 +158,7 @@ class LoanApplication extends Component
         }
 
         $this->totalInterest = $this->totalAmount - $principal;
+        $this->calculateProcessingFee(); // Recalculate processing fee when amount changes
     }
 
     public function addGuarantor()
@@ -405,7 +419,7 @@ class LoanApplication extends Component
             'applicationDate' => 'required|date',
             'startDate' => 'required|date|after_or_equal:applicationDate',
             'collateralValue' => 'nullable|numeric|min:0',
-            'processingFee' => 'nullable|numeric|min:0',
+            // 'processingFee' => 'nullable|numeric|min:0',
             'insuranceFee' => 'nullable|numeric|min:0',
             'disbursementMethod' => 'required|in:bank_transfer,cash,cheque,mobile_money',
         ];

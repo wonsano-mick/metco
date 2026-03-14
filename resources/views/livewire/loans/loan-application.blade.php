@@ -800,9 +800,9 @@
                                     <div class="grid grid-cols-2 md:grid-cols-4 gap-3">
                                         @foreach ([
         'bank_transfer' => ['icon' => 'university', 'label' => 'Bank Transfer', 'color' => 'blue'],
-        'cash' => ['icon' => 'money-bill-wave', 'label' => 'Cash', 'color' => 'green'],
-        'cheque' => ['icon' => 'file-invoice', 'label' => 'Cheque', 'color' => 'purple'],
-        'mobile_money' => ['icon' => 'mobile-alt', 'label' => 'Mobile Money', 'color' => 'orange'],
+        // 'cash' => ['icon' => 'money-bill-wave', 'label' => 'Cash', 'color' => 'green'],
+        // 'cheque' => ['icon' => 'file-invoice', 'label' => 'Cheque', 'color' => 'purple'],
+        // 'mobile_money' => ['icon' => 'mobile-alt', 'label' => 'Mobile Money', 'color' => 'orange'],
     ] as $method => $data)
                                             <button type="button"
                                                 wire:click="$set('disbursementMethod', '{{ $method }}')"
@@ -976,15 +976,15 @@
                                             </label>
                                             <div class="grid grid-cols-2 md:grid-cols-4 gap-2">
                                                 @foreach ([
-        'land' => ['icon' => 'mountain', 'label' => 'Land'],
-        'building' => ['icon' => 'building', 'label' => 'Building'],
-        'vehicle' => ['icon' => 'car', 'label' => 'Vehicle'],
-        'equipment' => ['icon' => 'tools', 'label' => 'Equipment'],
-        'savings' => ['icon' => 'piggy-bank', 'label' => 'Savings'],
-        'investment' => ['icon' => 'chart-line', 'label' => 'Investment'],
-        'guarantee' => ['icon' => 'handshake', 'label' => 'Guarantee'],
-        'other' => ['icon' => 'boxes', 'label' => 'Other'],
-    ] as $type => $data)
+                                                            'land' => ['icon' => 'mountain', 'label' => 'Land'],
+                                                            'building' => ['icon' => 'building', 'label' => 'Building'],
+                                                            'vehicle' => ['icon' => 'car', 'label' => 'Vehicle'],
+                                                            'equipment' => ['icon' => 'tools', 'label' => 'Equipment'],
+                                                            'savings' => ['icon' => 'piggy-bank', 'label' => 'Savings'],
+                                                            'investment' => ['icon' => 'chart-line', 'label' => 'Investment'],
+                                                            'guarantee' => ['icon' => 'handshake', 'label' => 'Guarantee'],
+                                                            'other' => ['icon' => 'boxes', 'label' => 'Other'],
+                                                        ] as $type => $data)
                                                     <button type="button"
                                                         wire:click="
                                                             @if (in_array($type, $collateralDetails)) $wire.set('collateralDetails', array_filter($collateralDetails, fn($item) => $item !== '{{ $type }}'))
@@ -1103,18 +1103,29 @@
                                         <div>
                                             <label for="processingFee"
                                                 class="block text-sm font-medium text-gray-700">
-                                                Processing Fee (GHS)
+                                                Processing Fee (GHS) <span class="text-xs text-gray-500 ml-1">(2% of
+                                                    loan amount)</span>
                                             </label>
-                                            <div class="mt-1 relative rounded-md shadow-sm">
+                                            <div class="mt-1 relative rounded-md shadow-sm bg-gray-50">
                                                 <div
                                                     class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
                                                     <span class="text-gray-500 sm:text-sm">GHS</span>
                                                 </div>
                                                 <input type="number" wire:model="processingFee" id="processingFee"
-                                                    step="0.01" min="0"
-                                                    class="block w-full pl-12 pr-12 py-3 text-base border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                                                    step="0.01" min="0" readonly disabled
+                                                    class="block w-full pl-12 pr-12 py-3 text-base border-gray-300 rounded-lg bg-gray-100 text-gray-700 cursor-not-allowed"
                                                     placeholder="0.00">
+                                                @if ($amount)
+                                                    <div
+                                                        class="absolute inset-y-0 right-0 pr-3 flex items-center pointer-events-none">
+                                                        <span class="text-xs text-gray-500">(2% of GHS
+                                                            {{ number_format($amount, 2) }})</span>
+                                                    </div>
+                                                @endif
                                             </div>
+                                            <p class="mt-1 text-xs text-gray-500">
+                                                Automatically calculated as 2% of loan amount
+                                            </p>
                                         </div>
 
                                         <div>

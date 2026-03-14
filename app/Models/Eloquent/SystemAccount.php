@@ -40,6 +40,9 @@ class SystemAccount extends Model
     const TYPE_INCOME = 'income';
     const TYPE_FEE_INCOME = 'charges';
     const TYPE_EXPENSE = 'expense';
+    const TYPE_LOAN_PAYABLE = 'loan_payable';
+    const TYPE_LOAN_RECEIVABLE = 'loan_receivable';
+    const TYPE_CASH = 'cash';
 
     public function ledgerEntries(): HasMany
     {

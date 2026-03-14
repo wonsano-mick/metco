@@ -522,7 +522,7 @@
                                             @if ($loan->disbursed_at)
                                                 <br>Disbursed: {{ $loan->disbursed_at->format('M d') }}
                                             @endif
-                                        </div>
+                                        </div> 
                                     </td>
                                     <td class="px-6 py-4 whitespace-nowrap text-sm font-medium">
                                         <div class="flex space-x-2">
@@ -531,7 +531,7 @@
                                                 title="View Loan">
                                                 <i class="fas fa-eye"></i>
                                             </a>
-                                            @if (Gate::allows('approve loans') && $loan->status === 'pending')
+                                            @if (Gate::allows('review loans') && $loan->status === 'pending')
                                                 <a href="{{ route('loans.review', $loan->id) }}"
                                                     class="text-green-600 hover:text-green-900 transition-colors duration-150 p-1 rounded hover:bg-green-50"
                                                     title="Review Loan">

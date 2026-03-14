@@ -82,7 +82,7 @@ class LoanReview extends Component
 
             // Update loan committee status
             $this->loan->update([
-                'committee_status' => 'recommended',
+                'committee_status' => 'reviewed', 
                 'status' => $this->review['decision'] === 'approve' ? 'pending' : 'under_review',
             ]);
 

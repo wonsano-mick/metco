@@ -135,7 +135,7 @@ class Loan extends Model
     {
         return $this->belongsTo(Account::class);
     }
-
+ 
     public function loanOfficer(): BelongsTo
     {
         return $this->belongsTo(User::class, 'loan_officer_id');

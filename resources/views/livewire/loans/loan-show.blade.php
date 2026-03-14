@@ -37,7 +37,7 @@
                                 <i class="fas fa-check-circle mr-2"></i>
                                 Approve
                             </button>
-                        @endif
+                        @endif 
                         @if($canReject)
                             <button wire:click="openRejectModal"
                                 class="inline-flex items-center px-4 py-2 bg-red-600 text-white rounded-md hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500">
@@ -808,7 +808,8 @@
                                                 Disbursement Method <span class="text-red-500">*</span>
                                             </label>
                                             <div class="grid grid-cols-2 gap-2">
-                                                @foreach(['bank_transfer', 'cash', 'cheque', 'mobile_money'] as $method)
+                                                {{-- @foreach(['bank_transfer', 'cash', 'cheque', 'mobile_money'] as $method) --}}
+                                                @foreach(['bank_transfer'] as $method)
                                                     <button type="button" 
                                                         wire:click="$set('disbursementData.method', '{{ $method }}')"
                                                         class="p-2 border rounded text-center text-sm

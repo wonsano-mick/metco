@@ -22,7 +22,8 @@ return new class extends Migration
                 'suspense',         // Suspense accounts
                 'clearing',         // Clearing accounts
                 'income',           // General income
-                'expense'           // General expense
+                'expense',          // General expense
+                'liability'         // Liability accounts (e.g. loan payables)
             ]);
             $table->string('currency', 3)->default('GHS');
             $table->decimal('balance', 15, 4)->default(0);
@@ -56,6 +57,21 @@ return new class extends Migration
             // Suspense/Clearing
             ['code' => 'SUSP-001', 'name' => 'Suspense Account', 'type' => 'suspense', 'currency' => 'GHS', 'balance' => 0, 'description' => 'Transactions awaiting clearing', 'created_at' => now()],
             ['code' => 'CLR-001', 'name' => 'Clearing Account', 'type' => 'clearing', 'currency' => 'GHS', 'balance' => 0, 'description' => 'Cheque clearing', 'created_at' => now()],
+
+            //loan payable account
+            ['code' => 'LOAN-PAY-001', 'name' => 'Loan Payable Account', 'type' => 'liability', 'currency' => 'GHS', 'balance' => 0, 'description' => 'Account for recording loan payables', 'created_at' => now()],
+
+            // Main Cash account
+            ['code' => 'CASH-001', 'name' => 'Main Cash Account', 'type' => 'cash', 'currency' => 'GHS', 'balance' => 0, 'description' => 'Main cash account for the institution', 'created_at' => now()],
+
+            //cheque account
+            ['code' => 'CHEQUE-001', 'name' => 'Cheque Account', 'type' => 'clearing', 'currency' => 'GHS', 'balance' => 0, 'description' => 'Account for processing cheque transactions', 'created_at' => now()],
+
+            //Mobile money account
+            ['code' => 'MM-001', 'name' => 'Mobile Money Account', 'type' => 'clearing', 'currency' => 'GHS', 'balance' => 0, 'description' => 'Account for processing mobile money transactions', 'created_at' => now()],
+
+            //bank bank account
+            ['code' => 'BANK-001', 'name' => 'Bank Account', 'type' => 'clearing', 'currency' => 'GHS', 'balance' => 0, 'description' => 'Account for processing bank transfer transactions', 'created_at' => now()],
         ]);
     }
 

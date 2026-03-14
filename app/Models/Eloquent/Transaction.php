@@ -308,4 +308,10 @@ class Transaction extends Model
 
         return 'N/A';
     }
+
+    public function loans()
+    {
+        return $this->belongsToMany(Loan::class, 'loan_transaction')
+            ->withTimestamps();
+    }
 }

@@ -215,7 +215,6 @@ class RolesAndPermissionsSeeder extends Seeder
                 'create loans',
                 'view loans',
                 'create loans',
-                'view loans',
                 'approve loans',
                 'reject loans',
                 'cancel loans',

@@ -201,7 +201,7 @@ class UserForm extends Component
         $hierarchy = [
             'super-admin' => array_column(Role::cases(), 'value'),
             'admin' => array_column(Role::cases(), 'value'),
-            'manager' => ['teller', 'accountant', 'supervisor','loan-officer','customer'],
+            'manager' => ['teller', 'accountant', 'supervisor','loan-officer','customer', 'loan committee'],
             'teller' => [],
             'accountant' => [],
             'auditor' => [],

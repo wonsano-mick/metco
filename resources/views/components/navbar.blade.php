@@ -83,10 +83,12 @@
                         Reports
                     </a>
                     
+                    @if(auth()->user()->role === 'super-admin' || auth()->user()->role === 'manager')
                     <a href="{{ route('tellers.index') }}"
                         class="{{ request()->routeIs('tellers.*') ? 'text-purple-600 border-b-2 border-purple-600' : 'text-gray-700 hover:text-blue-600' }} px-3 py-2 text-sm font-medium">
                         Tellers
                     </a>
+                    @endif
                     
                     @if(auth()->user()->role === 'super-admin' || auth()->user()->role === 'manager')
                     <a href="{{ route('users.index') }}"

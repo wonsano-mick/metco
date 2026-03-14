@@ -13,6 +13,7 @@ enum Role: string
     case AUDITOR = 'auditor';
     case CUSTOMER = 'customer';
     case SUPERVISOR = 'supervisor';
+    case LOAN_COMMITTEE = 'loan committee';
 
     public function label(): string
     {
@@ -26,6 +27,7 @@ enum Role: string
             self::AUDITOR => 'Auditor',
             self::CUSTOMER => 'Customer',
             self::SUPERVISOR => 'Supervisor',
+            self::LOAN_COMMITTEE => 'Loan Committee',
         };
     }
 
@@ -41,6 +43,8 @@ enum Role: string
             self::ACCOUNTANT,
             self::AUDITOR,
             self::CUSTOMER,
+            self::SUPERVISOR,
+            self::LOAN_COMMITTEE,
         ];
     }
 

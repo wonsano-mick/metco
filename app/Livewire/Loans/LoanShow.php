@@ -2,16 +2,16 @@
 
 namespace App\Livewire\Loans;
 
-use Livewire\Component;
-use App\Models\Eloquent\Loan;
-use App\Models\Eloquent\User;
-use Livewire\Attributes\Layout;
 use App\Models\Eloquent\Account;
 use App\Models\Eloquent\Customer;
+use App\Models\Eloquent\Loan;
 use App\Models\Eloquent\Transaction;
+use App\Models\Eloquent\User;
+use App\Services\Transaction\LoanDisbursementService;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Gate;
-use Illuminate\Support\Facades\Storage;
+use Livewire\Attributes\Layout;
+use Livewire\Component;
 
 class LoanShow extends Component
 {
@@ -311,9 +311,63 @@ class LoanShow extends Component
         }
     }
 
+    // public function disburseLoan()
+    // {
+    //     // dd($this->loan);
+    //     $this->validate([
+    //         'disbursementData.method' => 'required|in:bank_transfer,cash,cheque,mobile_money',
+    //         'disbursementData.account_id' => 'required_if:disbursementData.method,bank_transfer|exists:accounts,id',
+    //         'disbursementData.cheque_number' => 'required_if:disbursementData.method,cheque|string',
+    //         'disbursementData.mobile_money_number' => 'required_if:disbursementData.method,mobile_money|string',
+    //         'disbursementData.mobile_money_provider' => 'required_if:disbursementData.method,mobile_money|string',
+    //         'disbursementData.notes' => 'nullable|string|max:500',
+    //     ]);
+
+    //     try {
+    //         $this->loan->disburse($this->disbursementData);
+
+    //         // Create disbursement transaction
+    //         $transaction = Transaction::create([
+    //             'transaction_reference' => 'DISB' . time() . mt_rand(1000, 9999),
+    //             'type' => 'loan_disbursement',
+    //             'status' => 'completed',
+    //             'amount' => $this->loan->amount,
+    //             'currency' => 'GHS',
+    //             'description' => 'Loan disbursement for ' . $this->loan->loan_number,
+    //             'metadata' => [
+    //                 'loan_id' => $this->loan->id,
+    //                 'disbursement_method' => $this->disbursementData['method'],
+    //                 'approved_by' => Auth::id(),
+    //             ],
+    //             'initiated_by' => Auth::id(),
+    //             'initiated_at' => now(),
+    //             'completed_at' => now(),
+    //         ]); 
+
+    //         // Link transaction to loan
+    //         $this->loan->transactions()->attach($transaction->id);
+
+    //         //Create ledger entry
+
+    //         $this->dispatch(
+    //             'showToast',
+    //             message: 'Loan disbursed successfully!',
+    //             type: 'success'
+    //         );
+
+    //         $this->closeModal('showDisburseModal');
+    //         $this->loadLoan();
+    //     } catch (\Exception $e) {
+    //         $this->dispatch(
+    //             'showToast',
+    //             message: 'Error disbursing loan: ' . $e->getMessage(),
+    //             type: 'error'
+    //         );
+    //     }
+    // }
+
     public function disburseLoan()
     {
-        // dd($this->loan);
         $this->validate([
             'disbursementData.method' => 'required|in:bank_transfer,cash,cheque,mobile_money',
             'disbursementData.account_id' => 'required_if:disbursementData.method,bank_transfer|exists:accounts,id',
@@ -324,47 +378,24 @@ class LoanShow extends Component
         ]);
 
         try {
-            $this->loan->disburse($this->disbursementData);
+            $disbursementService = app(LoanDisbursementService::class);
 
-            // Create disbursement transaction
-            $transaction = Transaction::create([
-                'transaction_reference' => 'DISB' . time() . mt_rand(1000, 9999),
-                'type' => 'loan_disbursement',
-                'status' => 'completed',
-                'amount' => $this->loan->amount,
-                'currency' => 'GHS',
-                'description' => 'Loan disbursement for ' . $this->loan->loan_number,
-                'metadata' => [
-                    'loan_id' => $this->loan->id,
-                    'disbursement_method' => $this->disbursementData['method'],
-                    'approved_by' => Auth::id(),
-                ],
-                'initiated_by' => Auth::id(),
-                'initiated_at' => now(),
-                'completed_at' => now(),
-            ]);
-
-            // Link transaction to loan
-            $this->loan->transactions()->attach($transaction->id);
-
-            //Create ledger entry
-
-            $this->dispatch(
-                'showToast',
-                message: 'Loan disbursed successfully!',
-                type: 'success'
+            $transaction = $disbursementService->disburse(
+                $this->loan,
+                $this->disbursementData
             );
 
             $this->closeModal('showDisburseModal');
             $this->loadLoan();
+
+            session()->flash('success', 'Loan disbursed successfully with proper accounting entries! Transaction Reference: ' . $transaction->transaction_reference);
+            return redirect()->route('loans.show', $this->loan->id);
         } catch (\Exception $e) {
-            $this->dispatch(
-                'showToast',
-                message: 'Error disbursing loan: ' . $e->getMessage(),
-                type: 'error'
-            );
+            session()->flash('error', 'Error disbursing loan: ' . $e->getMessage());
+            return redirect()->route('loans.show', $this->loan->id);
         }
     }
+    
     public function markAsPaid($repaymentId)
     {
         try {

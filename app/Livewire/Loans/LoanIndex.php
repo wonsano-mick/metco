@@ -72,12 +72,12 @@ class LoanIndex extends Component
             $this->showFilters = true;
         }
     }
-
+ 
     private function loadCustomers()
     {
         $user = Auth::user();
 
-        if (Gate::allows('view all loans')) {
+        if (Gate::allows('view loans')) {
             $this->customers = Customer::active()
                 ->orderBy('first_name')
                 ->get(['id', 'customer_number', 'first_name', 'last_name']);
@@ -113,7 +113,7 @@ class LoanIndex extends Component
         $query = Loan::with(['customer', 'loanOfficer', 'account']);
 
         // Filter by permissions
-        if (!Gate::allows('view all loans')) {
+        if (!Gate::allows('view loans')) {
             $query->where(function ($q) use ($user) {
                 $q->where('loan_officer_id', $user->id)
                     ->orWhere('customer_id', $user->customer_id ?? null);
@@ -165,7 +165,7 @@ class LoanIndex extends Component
         $user = Auth::user();
         $query = Loan::query();
 
-        if (!Gate::allows('view all loans')) {
+        if (!Gate::allows('view loans')) {
             $query->where(function ($q) use ($user) {
                 $q->where('loan_officer_id', $user->id)
                     ->orWhere('customer_id', $user->customer_id ?? null);
